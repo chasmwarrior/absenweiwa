@@ -1,21 +1,40 @@
 import { format } from "date-fns";
 import axios from "axios";
 import { Router } from 'express';
+
 import { db } from '../db/index.js';
+
 import { settings, users, attendances, locations, phoneNumberRequests } from '../db/schema.js';
+
 import { eq, desc, and } from 'drizzle-orm';
+
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
 
+
+const formatPhone = (phone: string) => {
+  if (!phone) return phone;
+  let cleaned = phone.replace(/[^0-9]/g, '');
+  if (cleaned.startsWith('0')) {
+    return '62' + cleaned.substring(1);
+  } else if (cleaned.startsWith('8')) {
+    return '62' + cleaned;
+  }
+  return cleaned;
+};
+
+import { userSyncService } from '../services/UserSyncService.js';
 export const apiRouter = Router();
 
 
 // POST Public Phone Number Request
 apiRouter.post('/phone-requests', async (req, res) => {
   try {
-    const { old_number, new_number } = req.body;
+    let { old_number, new_number } = req.body;
+    old_number = formatPhone(old_number);
+    new_number = formatPhone(new_number);
     
     // Basic validation
     if (!old_number || !new_number) {
@@ -117,6 +136,8 @@ apiRouter.post('/phone-requests/:id', async (req, res) => {
           await tx.delete(users).where(eq(users.id, oldNumber));
         }
       });
+      userSyncService.deleteUser(oldNumber);
+      userSyncService.syncUser(newNumber);
       return res.json({ success: true });
     }
 
@@ -244,7 +265,9 @@ apiRouter.get('/users', async (req, res) => {
 apiRouter.post('/users', async (req, res) => {
   try {
     const { id, name, role, job_position, work_location_id } = req.body;
-    await db.insert(users).values({ id, name, role, job_position, work_location_id });
+    const formattedId = formatPhone(id);
+    await db.insert(users).values({ id: formattedId, name, role, job_position, work_location_id });
+    userSyncService.syncUser(formattedId);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -261,6 +284,7 @@ apiRouter.put('/users/:id', async (req, res) => {
        job_position, 
        work_location_id: work_location_id || null 
     }).where(eq(users.id, req.params.id));
+    userSyncService.syncUser(req.params.id);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -271,6 +295,7 @@ apiRouter.put('/users/:id', async (req, res) => {
 apiRouter.delete('/users/:id', async (req, res) => {
   try {
     await db.delete(users).where(eq(users.id, req.params.id));
+    userSyncService.deleteUser(req.params.id);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

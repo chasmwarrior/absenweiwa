@@ -17,9 +17,6 @@ export default function Register() {
           <p className="text-sm text-slate-400 leading-relaxed">
             Sistem kami terintegrasi secara internal dan pendaftaran hanya dapat dilakukan melalui panel Admin.
           </p>
-          <Link to="/login" className="inline-block mt-4 text-sm font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wide">
-            Login Admin &rarr;
-          </Link>
         </div>
       </div>
     </div>

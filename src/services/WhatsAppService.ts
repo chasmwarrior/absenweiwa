@@ -5,6 +5,7 @@ import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode';
 import pino from 'pino';
 import { db } from '../db/index.js';
+import { userSyncService } from './UserSyncService.js';
 import { settings, users, attendances, phoneNumberRequests } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import fs from 'fs';
@@ -58,8 +59,17 @@ waBotRouter.post('/logout', async (req, res) => {
     }, 2000);
 });
 
+
 export async function initWABot() {
+    await userSyncService.initialize();
+    if (sock) {
+        try {
+            sock.ev.removeAllListeners();
+            if (sock.ws) sock.ws.close(); else if (sock.end) sock.end(undefined);
+        } catch (e) {}
+    }
     console.log("Initializing WhatsApp Bot...");
+
     try {
         const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
         
@@ -79,15 +89,16 @@ export async function initWABot() {
             }
 
             if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+                const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
                 connectionStatus = 'close';
                 qrCodeDataUrl = null;
-                    
+                
                 if (shouldReconnect) {
                     const isQRExpired = lastDisconnect?.error && 
                         (lastDisconnect.error.message === 'QR refs attempts ended' || 
                          String(lastDisconnect.error).includes('QR refs attempts ended'));
-                             
+                         
                     if (isQRExpired) {
                         console.log('WhatsApp QR Code expired. Waiting for user to refresh.');
                         if (fs.existsSync('baileys_auth_info')) {
@@ -96,7 +107,15 @@ export async function initWABot() {
                         connectionStatus = 'qr_expired';
                         return; // Stop reconnecting, let user refresh manually
                     }
-                    
+
+                    if (statusCode === 515) {
+                        console.log('Stream Errored (restart required). Forcing clean reset...');
+                        if (fs.existsSync('baileys_auth_info')) {
+                             // Sometimes we don't want to delete auth info on 515, just restart
+                             // But let's just clear listeners which is done in initWABot
+                        }
+                    }
+
                     console.log('WhatsApp connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
                     setTimeout(() => initWABot(), 3000);
                 } else {
@@ -180,6 +199,10 @@ async function handleChangeNumberRequest(user, remoteJid, textMessage, varData, 
 }
 
 async function handleIncomingMessage(remoteJid: string, textMessage: string, locationData: any) {
+    const appSettingsRes = await db.select().from(settings).where(eq(settings.key, 'app_settings')).limit(1);
+    const appSettings = appSettingsRes.length > 0 ? JSON.parse(appSettingsRes[0].value) : null;
+    const appUrl = process.env.APP_URL || appSettings?.app_url || 'https://wa.absenwei.warriorcarl.my.id';
+
     if (!textMessage && !locationData) return;
     
     // Anti-spam logic (Unofficial API protection)
@@ -197,12 +220,6 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
 
     // Global Commands (Bypass Registration Check)
     if (command === 'daftar' || command === 'ganti nomer' || command === 'gantinomer') {
-        const appSettingsRes = await db.select().from(settings).where(eq(settings.key, 'app_settings')).limit(1);
-        const appSettings = appSettingsRes.length > 0 ? JSON.parse(appSettingsRes[0].value) : null;
-        // The frontend uses window.location.origin, but backend has no concept of it unless configured.
-        // We will default to APP_URL env or a generic message if not set.
-        const appUrl = process.env.APP_URL || appSettings?.app_url || 'https://wa.absenwei.warriorcarl.my.id';
-        
         if (command === 'daftar') {
             await sendWhatsAppMessage(remoteJid, `Silakan melakukan pendaftaran (oleh Admin) atau hubungi admin di link berikut:\n${appUrl}/register`);
         } else {
@@ -220,15 +237,15 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
         unknown_command: 'Perintah tidak dikenal' 
     };
 
-    // Find user
-    const userResult = await db.select().from(users).where(eq(users.id, senderNumber)).limit(1);
+    // Find user from cache
+    const user = userSyncService.getUser(senderNumber);
     
-    if (userResult.length === 0) {
+    if (!user) {
        await sendWhatsAppMessage(remoteJid, replaceVars(replies.not_registered, {}));
        return;
     }
 
-    const user = userResult[0];
+
     const nowTime = format(new Date(), 'HH:mm');
     const varData: any = { 
        name: user.name, 
@@ -561,6 +578,9 @@ async function handleCancelLeave(user: any, remoteJid: string, replies: any, var
 }
 
 async function handleInfo(user: any, remoteJid: string, replies: any, varData: any) {
+    const appSettingsRes = await db.select().from(settings).where(eq(settings.key, 'app_settings')).limit(1);
+    const appSettings = appSettingsRes.length > 0 ? JSON.parse(appSettingsRes[0].value) : null;
+    const appUrl = process.env.APP_URL || appSettings?.app_url || 'https://wa.absenwei.warriorcarl.my.id';
     const currentMonth = new Date().toISOString().slice(0, 7);
     const userAttendances = await db.select().from(attendances).where(eq(attendances.user_id, user.id));
     const monthlyAttendances = userAttendances.filter(a => a.date.startsWith(currentMonth));
@@ -569,8 +589,6 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
     let totalOvertime = 0;
     let totalBonus = 0;
     
-    const appSettingsRes = await db.select().from(settings).where(eq(settings.key, 'app_settings')).limit(1);
-    const appSettings = appSettingsRes.length > 0 ? JSON.parse(appSettingsRes[0].value) : null;
     const dailyBonus = appSettings?.bonuses?.on_time || 0;
 
     let hasLate = false;
@@ -618,7 +636,7 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
 *Estimasi Pendapatan Tambahan/Potongan*: Rp ${(totalOvertime + totalBonus - totalPenalty).toLocaleString()}
 
 🔗 *Lihat Kalender & Log Lengkap:*
-http://localhost:3000/stats/${user.id}
+${appUrl}/stats/${user.id}
 `;
 
     const msgTemplate = replies.info_stats || 'Halo {name}, berikut Estimasi pendapatan kamu sampai saat ini.\n{stats_breakdown}';

@@ -120,12 +120,6 @@ export default function ChangeNumber() {
             </>
           )}
         </form>
-        
-        <div className="px-6 py-4 border-t border-slate-700 bg-slate-900/50 flex justify-center">
-          <Link to="/login" className="text-xs text-slate-500 hover:text-slate-300 uppercase font-bold tracking-wide transition-colors">
-            Admin Login
-          </Link>
-        </div>
       </div>
     </div>
   );
