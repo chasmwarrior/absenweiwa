@@ -4,7 +4,7 @@ import { Router } from 'express';
 
 import { db } from '../db/index.js';
 
-import { settings, users, attendances, locations, phoneNumberRequests } from '../db/schema.js';
+import { settings, users, attendances, locations, phoneNumberRequests, auditLogs } from '../db/schema.js';
 
 import { eq, desc, and } from 'drizzle-orm';
 
@@ -135,6 +135,12 @@ apiRouter.post('/phone-requests/:id', async (req, res) => {
           await tx.update(phoneNumberRequests).set({ user_id: newNumber }).where(eq(phoneNumberRequests.user_id, oldNumber));
           // Delete old user
           await tx.delete(users).where(eq(users.id, oldNumber));
+          await tx.insert(auditLogs).values({
+            id: crypto.randomUUID(),
+            action: 'change_number',
+            details: `Persetujuan Ganti Nomor: ${oldUser[0].name} dari ${oldNumber} ke ${newNumber}`,
+            created_at: Date.now()
+          });
         }
       });
       await userSyncService.updateAuthorizedNumbers();
@@ -266,7 +272,15 @@ apiRouter.post('/users', async (req, res) => {
   try {
     const { id, name, role, job_position, work_location_id } = req.body;
     const formattedId = formatPhone(id);
-    await db.insert(users).values({ id: formattedId, name, role, job_position, work_location_id });
+    await db.transaction(async (tx) => {
+      await tx.insert(users).values({ id: formattedId, name, role, job_position, work_location_id });
+      await tx.insert(auditLogs).values({
+        id: crypto.randomUUID(),
+        action: 'register',
+        details: `Pendaftaran Karyawan Baru: ${name} (${formattedId})`,
+        created_at: Date.now()
+      });
+    });
     userSyncService.updateAuthorizedNumbers();
     res.json({ success: true });
   } catch (err: any) {
@@ -635,3 +649,12 @@ apiRouter.get('/data/audit-log', async (req, res) => {
 });
 
 
+
+apiRouter.get('/audit-logs', async (req, res) => {
+  try {
+    const logs = await db.select().from(auditLogs).orderBy(desc(auditLogs.created_at));
+    res.json(logs);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});

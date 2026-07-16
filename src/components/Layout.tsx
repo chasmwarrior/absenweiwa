@@ -101,6 +101,7 @@ export default function Layout() {
     { name: 'Pengaturan Bot', path: '/bot-settings', icon: MessageSquare },
     { name: 'Custom Commands', path: '/custom-commands', icon: Terminal },
     { name: 'Laporan (Excel)', path: '/reports', icon: FileSpreadsheet },
+    { name: 'Log Aktivitas', path: '/audit-logs', icon: Activity },
     { name: 'Pengaturan Sistem', path: '/settings', icon: Settings },
   ];
 

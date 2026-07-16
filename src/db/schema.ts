@@ -51,3 +51,10 @@ export const attendances = sqliteTable('attendances', {
   approval_status: text('approval_status').default('approved'), // 'pending', 'approved', 'rejected'
   notes: text('notes'),
 });
+
+export const auditLogs = sqliteTable('audit_logs', {
+  id: text('id').primaryKey(),
+  action: text('action').notNull(), // 'register', 'change_number', etc
+  details: text('details').notNull(),
+  created_at: integer('created_at').notNull(),
+});

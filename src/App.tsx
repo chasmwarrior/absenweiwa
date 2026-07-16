@@ -12,6 +12,7 @@ import CustomCommands from './pages/CustomCommands';
 import Reports from './pages/Reports';
 import PendingActions from './pages/PendingActions';
 import EmployeeStats from './pages/EmployeeStats';
+import AuditLogs from './pages/AuditLogs';
 import PrivateRoute from './components/PrivateRoute';
 import { AuthProvider } from './contexts/AuthContext';
 import { LoadingProvider } from './contexts/LoadingContext';
@@ -39,6 +40,7 @@ export default function App() {
                 <Route path="custom-commands" element={<CustomCommands />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="audit-logs" element={<AuditLogs />} />
               </Route>
             </Route>
           </Routes>

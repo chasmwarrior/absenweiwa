@@ -236,7 +236,9 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     if (isGroup) userLastGroup.set(user?.id || senderNumber, remoteJid);
     const replyJid = privateJid; // For detailed replies
 
-    const rawCommand = textMessage.trim().toLowerCase();
+    // Strip mentions from text message (e.g. "@628... !hadir" -> "!hadir")
+    const cleanTextMessage = textMessage.replace(/@[0-9]+/g, '').trim();
+    const rawCommand = cleanTextMessage.toLowerCase();
     const command = rawCommand.replace(/^!/, ''); // Strip ! at the beginning for all commands
 
     // Global Commands (Bypass Registration Check)
