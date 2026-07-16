@@ -27,6 +27,14 @@ export const settings = sqliteTable('settings', {
   value: text('value').notNull(), // JSON string
 });
 
+export const phoneNumberRequests = sqliteTable('phone_number_requests', {
+  id: text('id').primaryKey(),
+  user_id: text('user_id').notNull().references(() => users.id),
+  new_number: text('new_number').notNull(),
+  status: text('status').notNull().default('pending'),
+  created_at: integer('created_at').notNull(),
+});
+
 export const attendances = sqliteTable('attendances', {
   id: text('id').primaryKey(), // UUID
   user_id: text('user_id').notNull().references(() => users.id),

@@ -2,7 +2,7 @@ import { format } from "date-fns";
 import axios from "axios";
 import { Router } from 'express';
 import { db } from '../db/index.js';
-import { settings, users, attendances, locations } from '../db/schema.js';
+import { settings, users, attendances, locations, phoneNumberRequests } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -10,6 +10,123 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
 
 export const apiRouter = Router();
+
+
+// POST Public Phone Number Request
+apiRouter.post('/phone-requests', async (req, res) => {
+  try {
+    const { old_number, new_number } = req.body;
+    
+    // Basic validation
+    if (!old_number || !new_number) {
+      return res.status(400).json({ error: 'Nomor lama dan nomor baru harus diisi' });
+    }
+    
+    // Check if old user exists
+    const oldUser = await db.select().from(users).where(eq(users.id, old_number)).limit(1);
+    if (oldUser.length === 0) {
+      return res.status(404).json({ error: 'Nomor WhatsApp lama tidak terdaftar di sistem' });
+    }
+    
+    // Check if new number already exists as a user
+    const newUserCheck = await db.select().from(users).where(eq(users.id, new_number)).limit(1);
+    if (newUserCheck.length > 0) {
+      return res.status(400).json({ error: 'Nomor WhatsApp baru sudah terdaftar untuk pengguna lain' });
+    }
+    
+    // Check if pending exists
+    const existing = await db.select().from(phoneNumberRequests).where(and(eq(phoneNumberRequests.user_id, old_number), eq(phoneNumberRequests.status, 'pending'))).limit(1);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'Anda sudah memiliki pengajuan ganti nomor yang sedang diproses.' });
+    }
+    
+    const crypto = require('crypto');
+    await db.insert(phoneNumberRequests).values({
+        id: crypto.randomUUID(),
+        user_id: old_number,
+        new_number: new_number,
+        status: 'pending',
+        created_at: Date.now()
+    });
+    
+    res.json({ success: true, message: 'Pengajuan ganti nomor berhasil dikirim dan menunggu persetujuan Admin.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET Phone Number Requests
+apiRouter.get('/phone-requests', async (req, res) => {
+  try {
+    const requests = await db.select({
+      id: phoneNumberRequests.id,
+      user_id: phoneNumberRequests.user_id,
+      new_number: phoneNumberRequests.new_number,
+      status: phoneNumberRequests.status,
+      created_at: phoneNumberRequests.created_at,
+      user_name: users.name
+    }).from(phoneNumberRequests)
+      .leftJoin(users, eq(phoneNumberRequests.user_id, users.id))
+      .orderBy(desc(phoneNumberRequests.created_at));
+    res.json(requests);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST Approve/Reject Phone Request
+apiRouter.post('/phone-requests/:id', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const { id } = req.params;
+
+    const request = await db.select().from(phoneNumberRequests).where(eq(phoneNumberRequests.id, id)).limit(1);
+    if (request.length === 0) return res.status(404).json({ error: 'Request not found' });
+    
+    if (status === 'rejected') {
+      await db.update(phoneNumberRequests).set({ status: 'rejected' }).where(eq(phoneNumberRequests.id, id));
+      return res.json({ success: true });
+    }
+
+    if (status === 'approved') {
+      const oldNumber = request[0].user_id;
+      const newNumber = request[0].new_number;
+
+      // Check if new number already exists
+      const existingUser = await db.select().from(users).where(eq(users.id, newNumber)).limit(1);
+      if (existingUser.length > 0) {
+        return res.status(400).json({ error: 'New number already registered to another user' });
+      }
+
+      await db.transaction(async (tx) => {
+        const oldUser = await tx.select().from(users).where(eq(users.id, oldNumber)).limit(1);
+        if (oldUser.length > 0) {
+          // Insert new user
+          await tx.insert(users).values({
+            ...oldUser[0],
+            id: newNumber
+          });
+          // Update attendances
+          await tx.update(attendances).set({ user_id: newNumber }).where(eq(attendances.user_id, oldNumber));
+          // Update requests
+          await tx.update(phoneNumberRequests).set({ user_id: newNumber, status: 'approved' }).where(eq(phoneNumberRequests.id, id));
+          await tx.update(phoneNumberRequests).set({ user_id: newNumber }).where(eq(phoneNumberRequests.user_id, oldNumber));
+          // Delete old user
+          await tx.delete(users).where(eq(users.id, oldNumber));
+        }
+      });
+      return res.json({ success: true });
+    }
+
+    res.status(400).json({ error: 'Invalid status' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 
 // POST Login
 apiRouter.post('/auth/login', async (req, res) => {
@@ -297,7 +414,7 @@ apiRouter.post('/users/:id/pulang-cepat', async (req, res) => {
     const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     if (user.length === 0) return res.status(404).json({ error: 'User not found' });
     
-    const { sendWhatsAppMessage } = await import('./wa-bot.js');
+    const { sendWhatsAppMessage } = await import('../services/WhatsAppService.js');
     const msg = `Halo ${user[0].name}, admin telah mencatat Anda untuk Pulang Cepat hari ini. Mohon kirimkan bukti/alasan agar dapat disetujui oleh admin.`;
     
     const today = format(new Date(), 'yyyy-MM-dd');

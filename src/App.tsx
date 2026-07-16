@@ -4,6 +4,8 @@ import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
+import ChangeNumber from './pages/ChangeNumber';
+import Register from './pages/Register';
 import Locations from './pages/Locations';
 import BotSettings from './pages/BotSettings';
 import Reports from './pages/Reports';
@@ -22,6 +24,8 @@ export default function App() {
           <Toaster position="top-right" />
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/change-number" element={<ChangeNumber />} />
+            <Route path="/register" element={<Register />} />
             
             <Route element={<PrivateRoute />}>
               <Route path="/stats/:id" element={<EmployeeStats />} />

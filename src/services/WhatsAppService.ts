@@ -5,11 +5,14 @@ import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode';
 import pino from 'pino';
 import { db } from '../db/index.js';
-import { settings, users, attendances } from '../db/schema.js';
+import { settings, users, attendances, phoneNumberRequests } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 import { format } from 'date-fns';
+
+const lastMessageTimes = new Map<string, number>();
+const SPAM_THRESHOLD_MS = 2500;
 
 export const waBotRouter = Router();
 
@@ -142,11 +145,71 @@ export async function sendWhatsAppMessage(jid: string, text: string) {
 }
 
 // Logic implementation
+
+async function handleChangeNumberRequest(user, remoteJid, textMessage, varData, replies) {
+    const parts = textMessage.trim().split(' ');
+    if (parts.length < 2) {
+        await sendWhatsAppMessage(remoteJid, 'Format salah. Gunakan: !gantinomer <nomor_baru_628xxx>');
+        return;
+    }
+    const newNumber = parts[1].replace(/[^0-9]/g, '');
+    if (!newNumber.startsWith('62')) {
+        await sendWhatsAppMessage(remoteJid, 'Nomor harus diawali dengan 62 (contoh: 628123456789)');
+        return;
+    }
+    
+    // Check if pending exists
+    
+    const existing = await db.select().from(phoneNumberRequests).where(and(eq(phoneNumberRequests.user_id, user.id), eq(phoneNumberRequests.status, 'pending'))).limit(1);
+    
+    if (existing.length > 0) {
+        await sendWhatsAppMessage(remoteJid, 'Anda sudah memiliki pengajuan ganti nomor yang sedang diproses.');
+        return;
+    }
+
+    await db.insert(phoneNumberRequests).values({
+        id: crypto.randomUUID(),
+        user_id: user.id,
+        new_number: newNumber,
+        status: 'pending',
+        created_at: Date.now()
+    });
+
+    await sendWhatsAppMessage(remoteJid, 'Pengajuan ganti nomor ke ' + newNumber + ' berhasil dikirim dan menunggu persetujuan Admin.');
+    await alertAdmins(`Ada pengajuan ganti nomor dari ${user.name} (${user.id}) ke ${newNumber}.`);
+}
+
 async function handleIncomingMessage(remoteJid: string, textMessage: string, locationData: any) {
     if (!textMessage && !locationData) return;
+    
+    // Anti-spam logic (Unofficial API protection)
+    const now = Date.now();
+    const lastTime = lastMessageTimes.get(remoteJid) || 0;
+    if (now - lastTime < SPAM_THRESHOLD_MS) {
+        console.log(`Spam detected from ${remoteJid}, ignoring.`);
+        return;
+    }
+    lastMessageTimes.set(remoteJid, now);
 
     const senderNumber = remoteJid.split('@')[0];
-    const command = textMessage.trim().toLowerCase();
+    const rawCommand = textMessage.trim().toLowerCase();
+    const command = rawCommand.replace(/^!/, ''); // Strip ! at the beginning for all commands
+
+    // Global Commands (Bypass Registration Check)
+    if (command === 'daftar' || command === 'ganti nomer' || command === 'gantinomer') {
+        const appSettingsRes = await db.select().from(settings).where(eq(settings.key, 'app_settings')).limit(1);
+        const appSettings = appSettingsRes.length > 0 ? JSON.parse(appSettingsRes[0].value) : null;
+        // The frontend uses window.location.origin, but backend has no concept of it unless configured.
+        // We will default to APP_URL env or a generic message if not set.
+        const appUrl = process.env.APP_URL || appSettings?.app_url || 'http://localhost:3000';
+        
+        if (command === 'daftar') {
+            await sendWhatsAppMessage(remoteJid, `Silakan melakukan pendaftaran (oleh Admin) atau hubungi admin di link berikut:\n${appUrl}/register`);
+        } else {
+            await sendWhatsAppMessage(remoteJid, `Silakan ajukan ganti nomor melalui link berikut:\n${appUrl}/change-number`);
+        }
+        return;
+    }
 
     // Find templates
     const templatesResult = await db.select().from(settings).where(eq(settings.key, 'bot_templates')).limit(1);
@@ -183,22 +246,24 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     
     // Check custom commands first
     if (botTemplates?.custom_commands && Array.isArray(botTemplates.custom_commands)) {
-       const matchedCustom = botTemplates.custom_commands.find((c: any) => c.command.toLowerCase() === command);
+       const matchedCustom = botTemplates.custom_commands.find((c: any) => (c.command.toLowerCase() || '').replace(/^!/, '') === command);
        if (matchedCustom) {
            await sendWhatsAppMessage(remoteJid, replaceVars(matchedCustom.reply, varData));
            return;
        }
     }
 
-    if (command === cmds.check_in || command === 'hadir') {
+    if (command === (cmds.check_in || '').replace(/^!/, '') || command === 'hadir') {
         await handleCheckIn(user, remoteJid, replies, cmds, varData);
-    } else if (command === cmds.check_out || command === 'pulang') {
+    } else if (command === (cmds.check_out || '').replace(/^!/, '') || command === 'pulang') {
         await handleCheckOut(user, remoteJid, replies, cmds, varData);
-    } else if (command === (cmds.leave || '!izin') || command === 'izin' || command === 'libur') {
+    } else if (command === ((cmds.leave || 'izin').replace(/^!/, '')) || command === 'izin' || command === 'libur') {
         await handleLeave(user, remoteJid, replies, varData);
-    } else if (command === (cmds.cancel_leave || '!batal_izin')) {
+    } else if (command === ((cmds.cancel_leave || 'batal_izin').replace(/^!/, ''))) {
         await handleCancelLeave(user, remoteJid, replies, varData);
-    } else if (command === cmds.info || command === 'info' || command === 'statistik') {
+    } else if (command.startsWith('gantinomer')) {
+        await handleChangeNumberRequest(user, remoteJid, textMessage, varData, replies);
+    } else if (command === (cmds.info || '').replace(/^!/, '') || command === 'info' || command === 'statistik') {
         await handleInfo(user, remoteJid, replies, varData);
     } else {
         await sendWhatsAppMessage(remoteJid, replaceVars(replies.unknown_command, varData));

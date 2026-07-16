@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Clock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
@@ -63,6 +63,12 @@ export default function Login() {
             Sign In
           </button>
         </form>
+        <div className="px-6 py-4 border-t border-slate-700 bg-slate-900/50 flex flex-col items-center space-y-2">
+          <p className="text-xs text-slate-500 uppercase font-bold tracking-wide">Pengguna (Karyawan)</p>
+          <Link to="/change-number" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+            Ajukan Ganti Nomor WhatsApp
+          </Link>
+        </div>
       </div>
     </div>
   );
