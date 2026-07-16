@@ -1,7 +1,7 @@
 import React from "react";
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Save, QrCode, PowerOff, RefreshCw } from 'lucide-react';
+import { Save, QrCode, PowerOff, RefreshCw, Clock } from 'lucide-react';
 import { useWhatsAppStatus } from '../hooks/useWhatsAppStatus';
 
 function WhatsAppBotSetup() {

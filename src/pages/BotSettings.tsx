@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Save, MessageSquare, Info } from 'lucide-react';
+import { Save, MessageSquare, Info, RefreshCw, PowerOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { useWhatsAppStatus } from '../hooks/useWhatsAppStatus';
 
 export default function BotSettings() {
   const [templates, setTemplates] = useState<any>(null);
+  const { status, qrCode, reconnect } = useWhatsAppStatus();
 
   useEffect(() => {
     fetchTemplates();
@@ -14,8 +16,8 @@ export default function BotSettings() {
     try {
       const res = await axios.get('/api/bot-templates');
       setTemplates(res.data);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      if (err?.response?.status !== 429) console.error(err);
     }
   };
 
@@ -32,6 +34,45 @@ export default function BotSettings() {
 
   return (
     <div className="space-y-4 max-w-4xl">
+      {/* Bot Status Card */}
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col">
+        <div className="px-4 py-3 flex justify-between items-center border-b border-slate-700 bg-slate-900/50">
+          <div className="flex items-center">
+            <PowerOff className="w-4 h-4 text-indigo-400 mr-2" />
+            <h2 className="text-xs font-bold text-slate-400 uppercase">Status WhatsApp Bot</h2>
+          </div>
+          <button
+            onClick={reconnect}
+            className="flex items-center px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-bold transition-colors"
+          >
+            <RefreshCw className="w-3 h-3 mr-1" />
+            Reconnect Bot
+          </button>
+        </div>
+        <div className="p-4 flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-8">
+          <div>
+            <div className="text-xs font-bold text-slate-500 uppercase mb-1">Status Koneksi</div>
+            <div className="flex items-center space-x-2">
+              <div className={`w-3 h-3 rounded-full ${
+                status === 'connected' ? 'bg-emerald-500' :
+                status === 'connecting' ? 'bg-yellow-500' :
+                'bg-red-500'
+              } animate-pulse`}></div>
+              <span className="text-lg font-bold text-slate-200 capitalize">
+                {status === 'connecting' ? (qrCode ? 'Scanning QR...' : 'Connecting...') : status}
+              </span>
+            </div>
+          </div>
+          
+          {status === 'connecting' && qrCode && (
+            <div className="flex flex-col items-center border border-slate-700 p-2 rounded-lg bg-white">
+              <img src={qrCode} alt="WhatsApp QR Code" className="w-48 h-48" />
+              <div className="text-xs text-slate-500 mt-2 font-bold text-center w-full">Scan QR dengan WhatsApp Anda</div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col">
         <div className="px-4 py-3 flex justify-between items-center border-b border-slate-700 bg-slate-900/50">
           <div className="flex items-center">

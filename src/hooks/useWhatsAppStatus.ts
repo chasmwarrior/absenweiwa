@@ -11,14 +11,14 @@ export function useWhatsAppStatus() {
       setStatus(res.data.status);
       setQrCode(res.data.qr || null);
     } catch (err) {
-      console.error(err);
+      if (err?.response?.status !== 429) console.error(err);
       setStatus('error');
     }
   };
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 3000);
+    const interval = setInterval(fetchStatus, 15000);
     return () => clearInterval(interval);
   }, []);
 

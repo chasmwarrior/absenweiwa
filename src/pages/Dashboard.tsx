@@ -57,10 +57,10 @@ export default function Dashboard() {
         axios.get('/api/attendances'),
         axios.get('/api/users')
       ]);
-      setAttendances(attRes.data);
+      setAttendances(Array.isArray(attRes.data) ? attRes.data : []);
       setUsers(usersRes.data);
     } catch (err) {
-      console.error(err);
+      if (err?.response?.status !== 429) console.error(err);
     }
   };
 

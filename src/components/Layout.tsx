@@ -42,7 +42,7 @@ export default function Layout() {
     const checkPending = async () => {
       try {
         const res = await axios.get('/api/attendances');
-        const pending = res.data.filter((a: any) => a.approval_status === 'pending');
+        const pending = (Array.isArray(res.data) ? res.data : []).filter((a: any) => a.approval_status === 'pending');
         setPendingCount(pending.length);
         
         const currentIds = pending.map((a: any) => a.id);
@@ -79,7 +79,7 @@ export default function Layout() {
         }
         lastPendingIds.current = currentIds;
       } catch (err) {
-        console.error(err);
+        if (err?.response?.status !== 429) console.error(err);
       }
     };
     

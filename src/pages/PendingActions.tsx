@@ -19,11 +19,11 @@ export default function PendingActions() {
         axios.get('/api/attendances'),
         axios.get('/api/users')
       ]);
-      setPending(attRes.data.filter((a: any) => a.approval_status === 'pending'));
+      setPending((Array.isArray(attRes.data) ? attRes.data : []).filter((a: any) => a.approval_status === 'pending'));
       setUsers(usersRes.data);
       setSelectedIds(new Set());
     } catch (err) {
-      console.error(err);
+      if (err?.response?.status !== 429) console.error(err);
     }
   };
 
