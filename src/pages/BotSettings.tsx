@@ -140,6 +140,17 @@ export default function BotSettings() {
                 />
                 <span className="text-sm font-bold text-slate-300">Wajib Kirim Lokasi saat Check-Out</span>
               </label>
+              <div className="pt-2">
+                <label className="block text-sm font-bold text-slate-300 mb-1">ID Grup yang Diizinkan (Opsional)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: 12345@g.us, 67890@g.us (Pisahkan dengan koma)"
+                  value={templates.features?.allowed_groups || ''}
+                  onChange={(e) => setTemplates({ ...templates, features: { ...templates.features, allowed_groups: e.target.value } })}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 focus:border-indigo-500 outline-none transition-colors"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Biarkan kosong jika bot boleh merespon di semua grup.</p>
+              </div>
               <label className="flex items-center space-x-3 cursor-pointer">
                 <input
                   type="checkbox"
