@@ -10,6 +10,17 @@ export default function ChangeNumber() {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
+  
+  const formatPhone = (phone: string) => {
+    let cleaned = phone.replace(/[^0-9]/g, '');
+    if (cleaned.startsWith('0')) {
+      return '62' + cleaned.substring(1);
+    } else if (cleaned.startsWith('8')) {
+      return '62' + cleaned;
+    }
+    return cleaned;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -18,8 +29,8 @@ export default function ChangeNumber() {
 
     try {
       const res = await axios.post('/api/phone-requests', {
-        old_number: oldNumber.replace(/[^0-9]/g, ''),
-        new_number: newNumber.replace(/[^0-9]/g, '')
+        old_number: formatPhone(oldNumber),
+        new_number: formatPhone(newNumber)
       });
       setSuccess(res.data.message || 'Pengajuan ganti nomor berhasil dikirim dan menunggu persetujuan Admin.');
       setOldNumber('');

@@ -201,7 +201,7 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
         const appSettings = appSettingsRes.length > 0 ? JSON.parse(appSettingsRes[0].value) : null;
         // The frontend uses window.location.origin, but backend has no concept of it unless configured.
         // We will default to APP_URL env or a generic message if not set.
-        const appUrl = process.env.APP_URL || appSettings?.app_url || 'http://localhost:3000';
+        const appUrl = process.env.APP_URL || appSettings?.app_url || 'https://wa.absenwei.warriorcarl.my.id';
         
         if (command === 'daftar') {
             await sendWhatsAppMessage(remoteJid, `Silakan melakukan pendaftaran (oleh Admin) atau hubungi admin di link berikut:\n${appUrl}/register`);
