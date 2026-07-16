@@ -431,20 +431,3 @@ apiRouter.get('/data/audit-log', async (req, res) => {
 });
 
 
-apiRouter.get('/evolution/ping', async (req, res) => {
-    try {
-        const response = await axios.get('http://evolution-api:8080/').catch(() => null);
-        if (response) {
-            res.json({ status: 'connected', data: response.data });
-        } else {
-            const localResponse = await axios.get('http://localhost:8080/').catch(() => null);
-            if (localResponse) {
-                res.json({ status: 'connected', data: localResponse.data });
-            } else {
-                res.json({ status: 'disconnected' });
-            }
-        }
-    } catch (err: any) {
-        res.json({ status: 'disconnected', error: err.message });
-    }
-});

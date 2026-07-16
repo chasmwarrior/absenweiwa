@@ -1,47 +1,25 @@
 import React from "react";
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Save, QrCode, PowerOff } from 'lucide-react';
+import { Save, QrCode, PowerOff, RefreshCw } from 'lucide-react';
+import { useWhatsAppStatus } from '../hooks/useWhatsAppStatus';
 
 function WhatsAppBotSetup() {
-  const [status, setStatus] = useState<string>('loading');
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const { status, qrCode, fetchStatus, reconnect } = useWhatsAppStatus();
+  const [timeLeft, setTimeLeft] = React.useState<number>(0);
 
-  const qrRef = React.useRef(qrCode);
-  
-  const fetchStatus = async () => {
-    try {
-      const res = await axios.get('/api/bot/status');
-      setStatus(res.data.status);
-      if (res.data.qr && res.data.qr !== qrRef.current) {
-         qrRef.current = res.data.qr;
-         setQrCode(res.data.qr);
-         if (res.data.status === 'connecting') {
-           setTimeLeft(40);
-         }
-      } else if (!res.data.qr && qrRef.current) {
-         qrRef.current = null;
-         setQrCode(null);
-      }
-    } catch (err) {
-      console.error(err);
-      setStatus('error');
-    }
-  };
-
-  useEffect(() => {
-    fetchStatus();
-  }, []);
-
-  useEffect(() => {
+  React.useEffect(() => {
     if (status === 'connecting' && timeLeft > 0) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
       return () => clearTimeout(timer);
-    } else if (status === 'connecting' && timeLeft === 0) {
-      setStatus('qr_expired');
     }
   }, [timeLeft, status]);
+
+  React.useEffect(() => {
+    if (status === 'connecting' && timeLeft === 0) {
+      setTimeLeft(40);
+    }
+  }, [status]);
 
   const handleLogout = async () => {
     if (!confirm('Yakin ingin memutuskan koneksi bot WhatsApp ini?')) return;
@@ -68,17 +46,22 @@ function WhatsAppBotSetup() {
         )}
         <div>
           <h4 className="text-sm font-bold text-slate-200 uppercase">
-            Status: <span className={status === 'open' ? 'text-emerald-400' : status === 'qr_expired' ? 'text-rose-400' : 'text-amber-400'}>{status}</span>
+            Status: <span className={status === 'open' ? 'text-emerald-400' : status === 'qr_expired' ? 'text-rose-400' : 'text-amber-400'}>{status === 'open' ? 'Connected' : status === 'close' ? 'Disconnected' : status === 'connecting' ? 'Scanning QR' : status}</span>
           </h4>
           <p className="text-[10px] text-slate-400 mt-1">
-            {status === 'open' ? 'Bot terhubung dan berjalan normal.' : status === 'qr_expired' ? 'Barcode telah kadaluarsa.' : 'Scan QR code untuk menghubungkan WhatsApp.'}
+            {status === 'open' ? 'Bot terhubung dan berjalan normal.' : status === 'qr_expired' ? 'Barcode telah kadaluarsa. Klik Reconnect.' : 'Scan QR code untuk menghubungkan WhatsApp.'}
           </p>
         </div>
       </div>
       
-
-
         <div className="flex items-center gap-2">
+          <button
+            onClick={reconnect}
+            className="flex items-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-bold transition-colors shadow"
+          >
+            <RefreshCw className="w-3 h-3 mr-2" />
+            Reconnect
+          </button>
           <button
             onClick={fetchStatus}
             className="flex items-center px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-bold transition-colors border border-slate-700"
@@ -96,164 +79,22 @@ function WhatsAppBotSetup() {
           )}
         </div>
       </div>
-
-      {status === 'connecting' && qrCode && (
-        <div className="flex flex-col justify-center items-center w-full my-4">
-           <div className="bg-white p-4 rounded-xl shadow-lg border border-slate-200 w-full max-w-[300px] aspect-square flex items-center justify-center mb-3">
-             <img src={qrCode} alt="WhatsApp QR Code" className="w-full h-full object-contain" />
-           </div>
-           <p className="text-xs font-bold text-amber-400 uppercase">Kedaluwarsa dalam: {timeLeft}s</p>
-           <button
-             onClick={async () => {
-               setStatus('loading');
-               try {
-                 await axios.post('/api/bot/refresh');
-                 fetchStatus();
-               } catch (err) {
-                 alert('Gagal refresh barcode');
-               }
-             }}
-             className="mt-2 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-bold transition-colors uppercase"
-           >
-             Refresh
-           </button>
+      {(status === 'connecting' || status === 'loading') && qrCode && (
+        <div className="bg-slate-900 p-6 rounded-lg flex flex-col items-center justify-center border border-slate-700">
+          <h4 className="text-sm font-bold text-slate-200 mb-4">Scan QR Code</h4>
+          <div className="bg-white p-4 rounded-lg">
+            <img src={qrCode} alt="WhatsApp QR Code" className="w-64 h-64" />
+          </div>
+          <p className="text-xs text-slate-400 mt-4 flex items-center">
+             <Clock className="w-4 h-4 mr-1" /> QR code expired in {timeLeft}s
+          </p>
         </div>
       )}
-      {status === 'qr_expired' && (
-        <div className="flex flex-col justify-center items-center w-full my-4 p-6 bg-slate-800 rounded-xl border border-slate-700">
-           <QrCode className="w-12 h-12 text-slate-500 mb-3" />
-           <p className="text-sm font-bold text-slate-300 mb-2">Barcode Kadaluarsa</p>
-           <p className="text-xs text-slate-400 mb-4 text-center">Silakan refresh untuk mendapatkan barcode baru.</p>
-           <button
-             onClick={async () => {
-               setStatus('loading');
-               try {
-                 await axios.post('/api/bot/refresh');
-                 fetchStatus();
-               } catch (err) {
-                 alert('Gagal refresh barcode');
-               }
-             }}
-             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-bold transition-colors"
-           >
-             Refresh Barcode
-           </button>
-        </div>
-      )}
-
-      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col mt-8">
-         <div className="px-4 py-3 flex justify-between items-center border-b border-slate-700 bg-slate-900/50">
-           <h2 className="text-xs font-bold text-slate-400 uppercase">System Installation & Maintenance</h2>
-         </div>
-         <div className="p-4 space-y-4">
-            <p className="text-xs text-slate-400">
-               Jalankan perintah maintenance sistem layaknya menggunakan script setup.sh secara langsung. Pastikan Anda telah mem-backup data sebelum melakukan operasi yang bersifat merusak.
-            </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-               <button
-                 onClick={() => {
-                   if(confirm('Peringatan: Ini akan menginisialisasi ulang sistem, menghapus pengaturan dan membangun ulang container docker. Anda yakin?')) {
-                     alert('Perintah Full Clean Install dikirimkan ke background worker. Sistem mungkin akan restart dalam beberapa saat.');
-                   }
-                 }}
-                 className="flex flex-col items-center justify-center p-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded-lg border border-red-700/30 transition-colors"
-               >
-                 <PowerOff className="w-5 h-5 mb-1" />
-                 <span className="text-[10px] uppercase font-bold text-center">Full Clean Install</span>
-               </button>
-               
-               <button
-                 onClick={() => {
-                   if(confirm('Update sistem akan melakukan sinkronisasi dengan repositori dan melakukan rebuild. Lanjutkan?')) {
-                     alert('Perintah Update System dikirimkan. Silakan tunggu beberapa saat.');
-                   }
-                 }}
-                 className="flex flex-col items-center justify-center p-3 bg-indigo-900/20 hover:bg-indigo-900/40 text-indigo-400 rounded-lg border border-indigo-700/30 transition-colors"
-               >
-                 <Save className="w-5 h-5 mb-1" />
-                 <span className="text-[10px] uppercase font-bold text-center">Update System</span>
-               </button>
-
-               <button
-                 onClick={() => {
-                   if(confirm('Restart Services akan memulai ulang worker dan container WhatsApp bot. Lanjutkan?')) {
-                     alert('Perintah Restart Services dikirimkan.');
-                   }
-                 }}
-                 className="flex flex-col items-center justify-center p-3 bg-amber-900/20 hover:bg-amber-900/40 text-amber-400 rounded-lg border border-amber-700/30 transition-colors"
-               >
-                 <QrCode className="w-5 h-5 mb-1" />
-                 <span className="text-[10px] uppercase font-bold text-center">Restart Services</span>
-               </button>
-
-               <button
-                 onClick={() => {
-                   alert('Status Monitoring: Semua service (Database, Web, WABot) berjalan normal. RAM usage: 450MB, CPU: 5%.');
-                 }}
-                 className="flex flex-col items-center justify-center p-3 bg-emerald-900/20 hover:bg-emerald-900/40 text-emerald-400 rounded-lg border border-emerald-700/30 transition-colors"
-               >
-                 <span className="w-5 h-5 mb-1 font-bold text-lg flex items-center justify-center">∿</span>
-                 <span className="text-[10px] uppercase font-bold text-center">Status Monitoring</span>
-               </button>
-            </div>
-         </div>
-      </div>
-
     </div>
   );
 }
 
 
-function EvolutionApiSetup() {
-  const [status, setStatus] = useState<string>('loading');
-  const [data, setData] = useState<any>(null);
-
-  const pingEvo = async () => {
-    try {
-      const res = await axios.get('/api/evolution/ping');
-      setStatus(res.data.status);
-      setData(res.data.data);
-    } catch (err) {
-      setStatus('error');
-    }
-  };
-
-  useEffect(() => {
-    pingEvo();
-  }, []);
-
-  return (
-    <div className="bg-slate-900 border border-slate-700 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
-      <div className="flex items-center space-x-4">
-        {status === 'connected' ? (
-          <div className="w-12 h-12 bg-emerald-900/50 rounded-lg flex items-center justify-center border border-emerald-500/30">
-             <div className="text-emerald-400 font-bold text-xs uppercase">EVO</div>
-          </div>
-        ) : (
-          <div className="w-12 h-12 bg-rose-900/50 rounded-lg flex items-center justify-center border border-rose-500/30 ">
-            <div className="text-rose-400 font-bold text-[10px] uppercase text-center leading-tight">NO<br/>CONN</div>
-          </div>
-        )}
-        
-        <div>
-          <h3 className="text-sm font-bold text-slate-200">Koneksi Evolution API</h3>
-          {status === 'connected' ? (
-            <p className="text-xs text-emerald-400 mt-1 font-mono uppercase">Status: Connected {data?.version ? '(v' + data.version + ')' : ''}</p>
-          ) : status === 'loading' ? (
-            <p className="text-xs text-amber-400 mt-1 uppercase">Mengecek koneksi...</p>
-          ) : (
-            <p className="text-xs text-rose-400 mt-1 uppercase">Gagal terhubung ke backend Evolution API</p>
-          )}
-        </div>
-      </div>
-      <div>
-         <button onClick={pingEvo} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs font-bold text-slate-300 uppercase transition-colors">
-            Cek Ulang
-         </button>
-      </div>
-    </div>
-  );
-}
 
 export default function Settings() {
   const [settings, setSettings] = useState<any>(null);
@@ -403,7 +244,6 @@ export default function Settings() {
               <span className="w-2 h-2 bg-emerald-500 rounded-full mr-2"></span> WhatsApp Bot Connection
             </h3>
             <div className="space-y-4">
-              <EvolutionApiSetup />
               <WhatsAppBotSetup />
             </div>
           </div>

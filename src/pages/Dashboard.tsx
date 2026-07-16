@@ -18,21 +18,17 @@ export default function Dashboard() {
     checkDiagnostics();
   }, []);
 
-  const [evoStatus, setEvoStatus] = useState<string>('checking');
   
   const checkDiagnostics = async () => {
     try {
       const waRes = await axios.get('/api/bot/status').catch(() => ({ data: { status: 'error' } }));
-      const evoRes = await axios.get('/api/evolution/ping').catch(() => ({ data: { status: 'error' } }));
       
       setSysStatus({
         wa: waRes.data.status,
         db: 'ok'
       });
-      setEvoStatus(evoRes.data.status);
     } catch (e) {
       setSysStatus({ wa: 'error', db: 'error' });
-      setEvoStatus('error');
     }
   };
 
@@ -103,7 +99,7 @@ export default function Dashboard() {
   return (
     <div className="grid grid-cols-1 gap-4">
       {/* System Setup / Diagnostics Panel */}
-      {(sysStatus.wa !== 'open' || evoStatus !== 'connected') && (
+      {(sysStatus.wa !== 'open') && (
         <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-5">
           <div className="flex items-start">
              <div className="flex-shrink-0 mt-0.5">
@@ -114,24 +110,12 @@ export default function Dashboard() {
                 <p className="text-xs text-amber-500/80 mt-1 mb-3">Beberapa service backend belum siap. Ikuti panduan konfigurasi berikut untuk memulai.</p>
                 
                 <div className="space-y-3">
-                   <div className="flex items-center justify-between bg-slate-900/50 p-3 rounded border border-slate-700/50">
-                      <div className="flex items-center">
-                         <div className={`w-2 h-2 rounded-full mr-3 ${evoStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`}></div>
-                         <div>
-                            <div className="text-xs font-bold text-slate-200 uppercase">1. Evolution API Connection</div>
-                            <div className="text-[10px] text-slate-400 mt-0.5">{evoStatus === 'connected' ? 'Terhubung dengan backend.' : 'Container Evolution API tidak berjalan atau tidak dapat diakses.'}</div>
-                         </div>
-                      </div>
-                      {evoStatus !== 'connected' && (
-                         <div className="text-[10px] font-mono bg-slate-800 text-amber-300 px-2 py-1 rounded border border-amber-500/30">docker-compose up -d</div>
-                      )}
-                   </div>
                    
                    <div className="flex items-center justify-between bg-slate-900/50 p-3 rounded border border-slate-700/50">
                       <div className="flex items-center">
                          <div className={`w-2 h-2 rounded-full mr-3 ${sysStatus.wa === 'open' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`}></div>
                          <div>
-                            <div className="text-xs font-bold text-slate-200 uppercase">2. WhatsApp Bot Session</div>
+                            <div className="text-xs font-bold text-slate-200 uppercase">1. WhatsApp Bot Session</div>
                             <div className="text-[10px] text-slate-400 mt-0.5">{sysStatus.wa === 'open' ? 'Sesi WhatsApp aktif.' : 'Bot belum di-scan atau sesi terputus.'}</div>
                          </div>
                       </div>

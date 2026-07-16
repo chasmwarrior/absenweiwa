@@ -45,15 +45,12 @@ else
     echo -e "${GREEN}Docker Compose sudah terinstal.${NC}"
 fi
 
-echo -e "${YELLOW}Mengupdate konfigurasi repository Evolution API ke repository yang stabil...${NC}"
-# Use evoapicloud/evolution-api:latest as stable alternative
-sed -i 's/atendai\/evolution-api:v[0-9.]*/evoapicloud\/evolution-api:latest/g' docker-compose.yml
-sed -i 's/atendai\/evolution-api/evoapicloud\/evolution-api:latest/g' docker-compose.yml
-sed -i 's/evoapicloud\/evolution-api:v2.2.2/evoapicloud\/evolution-api:latest/g' docker-compose.yml
+echo -e "${YELLOW}Membersihkan instalasi sebelumnya jika ada...${NC}"
+docker-compose down -v --remove-orphans || true
 
 echo -e "${YELLOW}Membangun dan menjalankan container dengan Docker Compose...${NC}"
-docker-compose pull
-docker-compose up -d --build
+docker-compose build --no-cache
+docker-compose up -d
 
 if [ $? -eq 0 ]; then
     echo -e "${YELLOW}Memverifikasi status container...${NC}"
@@ -66,10 +63,10 @@ if [ $? -eq 0 ]; then
         echo ""
         echo -e "${GREEN}==================================================${NC}"
         echo -e "${GREEN}Instalasi Selesai dan Berhasil!${NC}"
-        echo "Aplikasi Absensi berjalan di: http://localhost:3000"
+        echo "Aplikasi Absensi berjalan di port 3000"
         echo -e "${GREEN}==================================================${NC}"
         echo "Langkah selanjutnya:"
-        echo "1. Buka http://localhost:3000 dan login dengan admin"
+        echo "1. Buka aplikasi dan login dengan admin"
         echo "2. Masuk ke menu Pengaturan Sistem > WhatsApp Bot Connection"
         echo "3. Scan QR Code dengan WhatsApp untuk menghubungkan bot."
     fi

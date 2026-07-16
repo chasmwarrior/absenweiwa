@@ -125,11 +125,6 @@ async function initializeSettings() {
         early_leave_per_month: 3,
         early_leave_start_time: '17:00'
       },
-      evolution_api: {
-        base_url: 'http://localhost:8080',
-        api_key: 'your_api_key_here',
-        instance_name: 'absensi_bot'
-      }
     };
     
     await db.insert(settings).values({ key: 'app_settings', value: JSON.stringify(defaultSettings) });
