@@ -16,7 +16,6 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/drizzle ./drizzle
 
 # Create directory for SQLite db
 RUN mkdir -p /app/data
