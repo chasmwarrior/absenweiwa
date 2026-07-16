@@ -26,6 +26,7 @@ const formatPhone = (phone: string) => {
 };
 
 import { userSyncService } from '../services/UserSyncService.js';
+import { sendWhatsAppMessage } from '../services/WhatsAppService.js';
 export const apiRouter = Router();
 
 
@@ -136,8 +137,7 @@ apiRouter.post('/phone-requests/:id', async (req, res) => {
           await tx.delete(users).where(eq(users.id, oldNumber));
         }
       });
-      userSyncService.deleteUser(oldNumber);
-      userSyncService.syncUser(newNumber);
+      await userSyncService.updateAuthorizedNumbers();
       return res.json({ success: true });
     }
 
@@ -267,7 +267,7 @@ apiRouter.post('/users', async (req, res) => {
     const { id, name, role, job_position, work_location_id } = req.body;
     const formattedId = formatPhone(id);
     await db.insert(users).values({ id: formattedId, name, role, job_position, work_location_id });
-    userSyncService.syncUser(formattedId);
+    userSyncService.updateAuthorizedNumbers();
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -284,7 +284,7 @@ apiRouter.put('/users/:id', async (req, res) => {
        job_position, 
        work_location_id: work_location_id || null 
     }).where(eq(users.id, req.params.id));
-    userSyncService.syncUser(req.params.id);
+    userSyncService.updateAuthorizedNumbers();
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -295,7 +295,7 @@ apiRouter.put('/users/:id', async (req, res) => {
 apiRouter.delete('/users/:id', async (req, res) => {
   try {
     await db.delete(users).where(eq(users.id, req.params.id));
-    userSyncService.deleteUser(req.params.id);
+    userSyncService.updateAuthorizedNumbers();
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -347,6 +347,51 @@ apiRouter.post('/attendances/:id/approve', async (req, res) => {
   try {
     const { status, notes } = req.body;
     await db.update(attendances).set({ approval_status: status, notes }).where(eq(attendances.id, req.params.id));
+
+    const attRecord = await db.select().from(attendances).where(eq(attendances.id, req.params.id)).limit(1);
+    if (attRecord.length > 0) {
+      const user = userSyncService.getUser(attRecord[0].user_id);
+      if (user) {
+let statusName = 'Absensi';
+        if (attRecord[0].status === 'holiday') statusName = 'Libur/Off';
+        else if (attRecord[0].status === 'late') statusName = 'Telat';
+        else if (attRecord[0].status === 'on_time') statusName = 'Masuk/In (Luar Geofence)';
+        else if (attRecord[0].status === 'overtime') statusName = 'Pulang/Out (Luar Geofence)';
+        
+        const templatesResult = await db.select().from(settings).where(eq(settings.key, 'bot_templates')).limit(1);
+        const botTemplates = templatesResult.length > 0 ? JSON.parse(templatesResult[0].value) : null;
+        const replies = botTemplates?.replies || {};
+
+        let msg = '';
+        const notesStr = notes ? "\nCatatan: " + notes : '';
+        const varData = {
+          name: user.name,
+          date: attRecord[0].date,
+          statusName: statusName,
+          notes: notesStr,
+          late_quota_left: user.late_quota,
+          leave_quota_left: user.holiday_quota,
+          emergency_late_quota_left: user.emergency_late_quota,
+          early_leave_quota_left: user.early_leave_quota,
+        };
+
+        const replaceVars = (template, data) => {
+          let result = template || '';
+          for (const key in data) {
+            result = result.replace(new RegExp(`\\{\$\{key\}\}`, 'g'), data[key]);
+          }
+          return result;
+        };
+
+        if (status === 'approved') {
+            msg = replaceVars(replies.approval_approved || 'Permohonan {statusName} Anda pada tanggal {date} telah *DISETUJUI* oleh Admin.{notes}', varData);
+        } else {
+            msg = replaceVars(replies.approval_rejected || 'Permohonan {statusName} Anda pada tanggal {date} telah *DITOLAK* oleh Admin.{notes}', varData);
+        }
+        await sendWhatsAppMessage(user.id + '@s.whatsapp.net', msg);
+      }
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -358,6 +403,23 @@ apiRouter.put('/attendances/:id/approval', async (req, res) => {
   try {
     const { status } = req.body;
     await db.update(attendances).set({ approval_status: status, notes: 'Diproses melalui Pending Actions' }).where(eq(attendances.id, req.params.id));
+
+    const attRecord = await db.select().from(attendances).where(eq(attendances.id, req.params.id)).limit(1);
+    if (attRecord.length > 0) {
+      const user = userSyncService.getUser(attRecord[0].user_id);
+      if (user) {
+let statusName = 'Absensi';
+        if (attRecord[0].status === 'holiday') statusName = 'Libur/Off';
+        else if (attRecord[0].status === 'late') statusName = 'Telat';
+        else if (attRecord[0].status === 'on_time') statusName = 'Masuk/In (Luar Geofence)';
+        else if (attRecord[0].status === 'overtime') statusName = 'Pulang/Out (Luar Geofence)';
+        
+        let msg = `Permohonan ${statusName} Anda pada tanggal ${attRecord[0].date} telah *${status === 'approved' ? 'DISETUJUI' : 'DITOLAK'}* oleh Admin.`;
+        msg += `\nSisa kuota telat Anda: ${user.late_quota} hari.`;
+        await sendWhatsAppMessage(user.id + '@s.whatsapp.net', msg);
+      }
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

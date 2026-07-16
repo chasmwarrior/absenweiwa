@@ -8,6 +8,7 @@ import ChangeNumber from './pages/ChangeNumber';
 import Register from './pages/Register';
 import Locations from './pages/Locations';
 import BotSettings from './pages/BotSettings';
+import CustomCommands from './pages/CustomCommands';
 import Reports from './pages/Reports';
 import PendingActions from './pages/PendingActions';
 import EmployeeStats from './pages/EmployeeStats';
@@ -35,6 +36,7 @@ export default function App() {
                 <Route path="users" element={<Users />} />
                 <Route path="locations" element={<Locations />} />
                 <Route path="bot-settings" element={<BotSettings />} />
+                <Route path="custom-commands" element={<CustomCommands />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="settings" element={<Settings />} />
               </Route>

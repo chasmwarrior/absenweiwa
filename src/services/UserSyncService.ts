@@ -26,6 +26,10 @@ class UserSyncService {
     console.log(`UserSyncService synced user ${userId}`);
   }
 
+  async updateAuthorizedNumbers() {
+    await this.initialize();
+  }
+
   async syncAll() {
     await this.initialize();
   }

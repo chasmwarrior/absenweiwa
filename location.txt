@@ -1,0 +1,23 @@
+        await handleImage(user, replyJid, replies, varData, imageMessage);
+        return;
+    }
+
+    if (locationData) {
+        await handleLocation(user, remoteJid, replies, varData, locationData);
+        return;
+    }
+    
+    // Check custom commands first
+    if (botTemplates?.custom_commands && Array.isArray(botTemplates.custom_commands)) {
+--
+    for (const admin of adminUsers) {
+        await sendWhatsAppMessage(`${admin.id}@s.whatsapp.net`, text);
+    }
+}
+
+async function handleLocation(user: any, remoteJid: string, replies: any, varData: any, locationData: any) {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
+    
+    if (existing.length > 0 && locationData) {
+        const lat = locationData.degreesLatitude;

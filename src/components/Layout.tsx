@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Users, Settings, LayoutDashboard, Clock, MapPin, MessageSquare, LogOut, FileSpreadsheet, AlertCircle, Menu, X } from 'lucide-react';
+import { Users, Settings, LayoutDashboard, Clock, MapPin, MessageSquare, LogOut, FileSpreadsheet, AlertCircle, Menu, X, Terminal } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -99,6 +99,7 @@ export default function Layout() {
     { name: 'Karyawan', path: '/users', icon: Users },
     { name: 'Lokasi & Geofence', path: '/locations', icon: MapPin },
     { name: 'Pengaturan Bot', path: '/bot-settings', icon: MessageSquare },
+    { name: 'Custom Commands', path: '/custom-commands', icon: Terminal },
     { name: 'Laporan (Excel)', path: '/reports', icon: FileSpreadsheet },
     { name: 'Pengaturan Sistem', path: '/settings', icon: Settings },
   ];

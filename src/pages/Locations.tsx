@@ -180,7 +180,7 @@ export default function Locations() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <LocationPicker position={position} setPosition={setPosition} />
+            <LocationPicker position={position} setPosition={setPosition} radius={radius} />
             {locations.map(loc => (
               <React.Fragment key={loc.id}>
                 <Marker position={[loc.latitude, loc.longitude]} />
