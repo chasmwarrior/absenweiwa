@@ -8,6 +8,14 @@ export default function BotSettings() {
   const [templates, setTemplates] = useState<any>(null);
   const { status, qrCode, reconnect } = useWhatsAppStatus();
 
+  const displayStatus = () => {
+    if (status === 'open') return 'Connected';
+    if (status === 'close' || status === 'error' || status === 'qr_expired') return 'Disconnected';
+    if (status === 'connecting') return qrCode ? 'Scanning' : 'Connecting...';
+    return 'Loading...';
+  };
+
+
   useEffect(() => {
     fetchTemplates();
   }, []);
@@ -46,7 +54,7 @@ export default function BotSettings() {
             className="flex items-center px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-xs font-bold transition-colors"
           >
             <RefreshCw className="w-3 h-3 mr-1" />
-            Reconnect Bot
+            Reconnect
           </button>
         </div>
         <div className="p-4 flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-8">
@@ -54,12 +62,12 @@ export default function BotSettings() {
             <div className="text-xs font-bold text-slate-500 uppercase mb-1">Status Koneksi</div>
             <div className="flex items-center space-x-2">
               <div className={`w-3 h-3 rounded-full ${
-                status === 'connected' ? 'bg-emerald-500' :
+                status === 'open' ? 'bg-emerald-500' :
                 status === 'connecting' ? 'bg-yellow-500' :
                 'bg-red-500'
               } animate-pulse`}></div>
               <span className="text-lg font-bold text-slate-200 capitalize">
-                {status === 'connecting' ? (qrCode ? 'Scanning QR...' : 'Connecting...') : status}
+                {displayStatus()}
               </span>
             </div>
           </div>

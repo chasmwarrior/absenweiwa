@@ -5,7 +5,7 @@ import { createServer as createViteServer } from 'vite';
 import { db } from './src/db/index.js';
 import { settings, users, attendances } from './src/db/schema.js';
 import { eq, and, isNull } from 'drizzle-orm';
-import { waBotRouter, initWABot, sendWhatsAppMessage } from './src/api/wa-bot.js';
+import { waBotRouter, initWABot, sendWhatsAppMessage } from './src/services/WhatsAppService.js';
 import { apiRouter } from './src/api/api.js';
 import bcrypt from 'bcryptjs';
 import cron from 'node-cron';

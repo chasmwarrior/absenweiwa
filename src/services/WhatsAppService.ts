@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import makeWASocketPkg, { DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+const makeWASocket = (makeWASocketPkg as any).default || (makeWASocketPkg as any).makeWASocket || makeWASocketPkg;
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode';
 import pino from 'pino';
