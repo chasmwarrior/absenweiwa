@@ -41,7 +41,7 @@ export default function BotSettings() {
   if (!templates) return <div className="p-8 text-slate-400">Loading...</div>;
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4 max-w-7xl mx-auto w-full">
       {/* Bot Status Card */}
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col">
         <div className="px-4 py-3 flex justify-between items-center border-b border-slate-700 bg-slate-900/50">
@@ -155,7 +155,7 @@ export default function BotSettings() {
             <h3 className="text-[11px] font-bold text-slate-400 uppercase mb-3 flex items-center">
               <span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span> Perintah (Commands)
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Perintah Masuk (Check-In)</label>
                 <input

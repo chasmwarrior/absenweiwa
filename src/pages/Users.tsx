@@ -103,7 +103,7 @@ export default function Users() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-7xl mx-auto w-full">
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-700">
           <h2 className="text-xs font-bold text-slate-400 uppercase">Tambah Karyawan Baru</h2>

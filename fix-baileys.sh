@@ -1,1 +1,0 @@
-sed -i 's/import makeWASocket, { DisconnectReason, useMultiFileAuthState } from '"'"'@whiskeysockets\/baileys'"'"';/import makeWASocketPkg, { DisconnectReason, useMultiFileAuthState } from '"'"'@whiskeysockets\/baileys'"'"';\nconst makeWASocket = (makeWASocketPkg as any).default || (makeWASocketPkg as any).makeWASocket || makeWASocketPkg;/g' src/api/wa-bot.ts

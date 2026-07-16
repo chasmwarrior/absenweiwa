@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { AlertCircle, Check, X, CheckSquare, Square } from 'lucide-react';
-import { format } from 'date-fns';
 import { toast } from 'react-hot-toast';
 
 export default function PendingActions() {
@@ -86,7 +85,7 @@ export default function PendingActions() {
   };
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4 max-w-7xl mx-auto w-full">
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
         <div className="px-4 py-3 flex justify-between items-center border-b border-slate-700 bg-slate-900/50">
           <div className="flex items-center">

@@ -91,7 +91,7 @@ export default function Reports() {
   const chartData = Array.from(chartDataMap.values());
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4 max-w-7xl mx-auto w-full">
       {/* Chart Section */}
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
         <div className="px-4 py-3 flex items-center border-b border-slate-700 bg-slate-900/50">
