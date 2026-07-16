@@ -45,7 +45,7 @@ export async function initWABot() {
     try {
         const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
         
-        sock = makeWASocket.default({
+        sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
             logger: pino({ level: 'silent' }),

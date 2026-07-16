@@ -3,6 +3,7 @@ import axios from 'axios';
 import { CheckCircle, XCircle, Clock, Download, RefreshCw, Power, MapPin } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
+import DashboardChart from '../components/DashboardChart';
 export default function Dashboard() {
   const [attendances, setAttendances] = useState([]);
   const [users, setUsers] = useState<any[]>([]);
@@ -122,6 +123,12 @@ export default function Dashboard() {
              {attendances.filter((a: any) => a.approval_status === 'pending').length}
           </div>
         </div>
+      </div>
+
+      {/* Chart */}
+      <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
+        <h2 className="text-xs font-bold text-slate-400 uppercase">Statistik Kehadiran 7 Hari Terakhir</h2>
+        <DashboardChart attendances={attendances} />
       </div>
 
       {/* Recent Attendances */}

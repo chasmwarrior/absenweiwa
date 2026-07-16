@@ -2,19 +2,21 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
   const [id, setId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const res = await axios.post('/api/auth/login', { id, password });
-      localStorage.setItem('adminToken', res.data.token);
-      window.location.href = '/';
+      login(res.data.token);
+      navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed');
     }

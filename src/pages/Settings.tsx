@@ -1,3 +1,4 @@
+import React from "react";
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Save, QrCode, PowerOff } from 'lucide-react';
@@ -192,6 +193,7 @@ export default function Settings() {
     window.open('/api/data/export', '_blank');
   };
 
+  
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPassword) return;

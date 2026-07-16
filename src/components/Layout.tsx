@@ -3,23 +3,15 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { Users, Settings, LayoutDashboard, Clock, MapPin, MessageSquare, LogOut, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [isAuth, setIsAuth] = useState(false);
+  const { logout } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
   const [branding, setBranding] = useState({ app_name: 'AbsensiBot', logo_url: '' });
   const lastPendingIds = useRef<string[]>([]);
-
-  useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (!token) {
-      navigate('/login');
-    } else {
-      setIsAuth(true);
-    }
-  }, [navigate]);
 
   const loadBranding = async () => {
     try {
@@ -36,19 +28,15 @@ export default function Layout() {
   };
 
   useEffect(() => {
-    if (isAuth) {
-       loadBranding();
-    }
+    loadBranding();
     const handleBrandingUpdated = () => {
        loadBranding();
     };
     window.addEventListener('branding-updated', handleBrandingUpdated);
     return () => window.removeEventListener('branding-updated', handleBrandingUpdated);
-  }, [isAuth]);
+  }, []);
 
   useEffect(() => {
-    if (!isAuth) return;
-
     const checkPending = async () => {
       try {
         const res = await axios.get('/api/attendances');
@@ -92,14 +80,14 @@ export default function Layout() {
         console.error(err);
       }
     };
-
+    
     checkPending();
     const interval = setInterval(checkPending, 15000); // Check every 15 seconds
     return () => clearInterval(interval);
-  }, [isAuth, navigate]);
+  }, [navigate]);
 
   const handleLogout = () => {
-    localStorage.removeItem('adminToken');
+    logout();
     navigate('/login');
   };
 
@@ -113,11 +101,9 @@ export default function Layout() {
     { name: 'Pengaturan Sistem', path: '/settings', icon: Settings },
   ];
 
-  if (!isAuth) return null;
-
   return (
     <div className="flex h-screen overflow-hidden bg-slate-900 font-sans text-slate-200">
-      <Toaster position="top-right" />
+      
       {/* Sidebar */}
       <div className="w-60 flex-shrink-0 border-r border-slate-700 bg-slate-800 flex flex-col">
         <div className="p-4 border-b border-slate-700 flex items-center h-14">
@@ -171,7 +157,6 @@ export default function Layout() {
            </button>
         </div>
       </div>
-
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         <header className="h-14 border-b border-slate-700 flex items-center px-6 bg-slate-800">
@@ -179,7 +164,7 @@ export default function Layout() {
             {navItems.find((i) => i.path === location.pathname)?.name || 'Admin Panel'}
           </h1>
         </header>
-        <main className="flex-1 p-4 bg-slate-900 overflow-auto">
+        <main className="flex-1 p-4 bg-slate-900 overflow-auto relative">
           <Outlet />
         </main>
       </div>
