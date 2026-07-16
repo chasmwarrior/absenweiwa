@@ -14,13 +14,27 @@ export const waBotRouter = Router();
 
 let sock: any = null;
 let qrCodeDataUrl: string | null = null;
-let connectionStatus: 'connecting' | 'open' | 'close' = 'close';
+let connectionStatus: 'connecting' | 'open' | 'close' | 'qr_expired' = 'close';
 
 waBotRouter.get('/status', (req, res) => {
     res.json({
         status: connectionStatus,
         qr: qrCodeDataUrl
     });
+});
+
+waBotRouter.post('/refresh', async (req, res) => {
+    if (sock) {
+        try { sock.logout(); } catch (e) {}
+    }
+    if (fs.existsSync('baileys_auth_info')) {
+        fs.rmSync('baileys_auth_info', { recursive: true, force: true });
+    }
+    connectionStatus = 'close';
+    qrCodeDataUrl = null;
+    
+    initWABot();
+    res.json({ success: true });
 });
 
 waBotRouter.post('/logout', async (req, res) => {
@@ -54,7 +68,7 @@ export async function initWABot() {
 
         sock.ev.on('connection.update', async (update: any) => {
             const { connection, lastDisconnect, qr } = update;
-            
+                
             if (qr) {
                 qrCodeDataUrl = await qrcode.toDataURL(qr);
                 connectionStatus = 'connecting';
@@ -62,12 +76,25 @@ export async function initWABot() {
 
             if (connection === 'close') {
                 const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log('WhatsApp connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
                 connectionStatus = 'close';
                 qrCodeDataUrl = null;
-                
+                    
                 if (shouldReconnect) {
-                    initWABot();
+                    const isQRExpired = lastDisconnect?.error && 
+                        (lastDisconnect.error.message === 'QR refs attempts ended' || 
+                         String(lastDisconnect.error).includes('QR refs attempts ended'));
+                             
+                    if (isQRExpired) {
+                        console.log('WhatsApp QR Code expired. Waiting for user to refresh.');
+                        if (fs.existsSync('baileys_auth_info')) {
+                            fs.rmSync('baileys_auth_info', { recursive: true, force: true });
+                        }
+                        connectionStatus = 'qr_expired';
+                        return; // Stop reconnecting, let user refresh manually
+                    }
+                    
+                    console.log('WhatsApp connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
+                    setTimeout(() => initWABot(), 3000);
                 } else {
                     // Logged out, delete auth info
                     if (fs.existsSync('baileys_auth_info')) {

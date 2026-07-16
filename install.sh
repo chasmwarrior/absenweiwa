@@ -45,21 +45,36 @@ else
     echo -e "${GREEN}Docker Compose sudah terinstal.${NC}"
 fi
 
+echo -e "${YELLOW}Mengupdate konfigurasi repository Evolution API ke repository yang stabil...${NC}"
+# Use evoapicloud/evolution-api:latest as stable alternative
+sed -i 's/atendai\/evolution-api:v[0-9.]*/evoapicloud\/evolution-api:latest/g' docker-compose.yml
+sed -i 's/atendai\/evolution-api/evoapicloud\/evolution-api:latest/g' docker-compose.yml
+sed -i 's/evoapicloud\/evolution-api:v2.2.2/evoapicloud\/evolution-api:latest/g' docker-compose.yml
+
 echo -e "${YELLOW}Membangun dan menjalankan container dengan Docker Compose...${NC}"
+docker-compose pull
 docker-compose up -d --build
 
 if [ $? -eq 0 ]; then
-    echo ""
-    echo -e "${GREEN}==================================================${NC}"
-    echo -e "${GREEN}Instalasi Selesai!${NC}"
-    echo "Aplikasi Absensi berjalan di: http://localhost:3000"
-    echo -e "${GREEN}==================================================${NC}"
-    echo "Langkah selanjutnya:"
-    echo "1. Buka http://localhost:3000 dan login dengan admin"
-    echo "2. Masuk ke menu Pengaturan Sistem > WhatsApp Bot Connection"
-    echo "3. Scan QR Code dengan WhatsApp untuk menghubungkan bot."
+    echo -e "${YELLOW}Memverifikasi status container...${NC}"
+    sleep 5
+    if docker-compose ps | grep -q "Exit"; then
+        echo -e "${RED}Beberapa container gagal berjalan. Berikut log terakhir:${NC}"
+        docker-compose logs --tail=20
+        exit 1
+    else
+        echo ""
+        echo -e "${GREEN}==================================================${NC}"
+        echo -e "${GREEN}Instalasi Selesai dan Berhasil!${NC}"
+        echo "Aplikasi Absensi berjalan di: http://localhost:3000"
+        echo -e "${GREEN}==================================================${NC}"
+        echo "Langkah selanjutnya:"
+        echo "1. Buka http://localhost:3000 dan login dengan admin"
+        echo "2. Masuk ke menu Pengaturan Sistem > WhatsApp Bot Connection"
+        echo "3. Scan QR Code dengan WhatsApp untuk menghubungkan bot."
+    fi
 else
-    echo -e "${RED}Terjadi kesalahan saat membangun container.${NC}"
+    echo -e "${RED}Terjadi kesalahan saat membangun atau menarik container.${NC}"
+    echo -e "${YELLOW}Coba jalankan 'docker login' jika image private, atau cek koneksi internet.${NC}"
     exit 1
 fi
-

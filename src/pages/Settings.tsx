@@ -6,12 +6,24 @@ import { Save, QrCode, PowerOff } from 'lucide-react';
 function WhatsAppBotSetup() {
   const [status, setStatus] = useState<string>('loading');
   const [qrCode, setQrCode] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(0);
 
+  const qrRef = React.useRef(qrCode);
+  
   const fetchStatus = async () => {
     try {
       const res = await axios.get('/api/bot/status');
       setStatus(res.data.status);
-      setQrCode(res.data.qr);
+      if (res.data.qr && res.data.qr !== qrRef.current) {
+         qrRef.current = res.data.qr;
+         setQrCode(res.data.qr);
+         if (res.data.status === 'connecting') {
+           setTimeLeft(40);
+         }
+      } else if (!res.data.qr && qrRef.current) {
+         qrRef.current = null;
+         setQrCode(null);
+      }
     } catch (err) {
       console.error(err);
       setStatus('error');
@@ -20,9 +32,16 @@ function WhatsAppBotSetup() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 3000);
-    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (status === 'connecting' && timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (status === 'connecting' && timeLeft === 0) {
+      setStatus('qr_expired');
+    }
+  }, [timeLeft, status]);
 
   const handleLogout = async () => {
     if (!confirm('Yakin ingin memutuskan koneksi bot WhatsApp ini?')) return;
@@ -35,11 +54,12 @@ function WhatsAppBotSetup() {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-700 p-4 rounded-lg flex items-center justify-between">
-      <div className="flex items-center space-x-4">
+    <div className="space-y-4 mb-4">
+      <div className="bg-slate-900 border border-slate-700 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center space-x-4">
         {status === 'open' ? (
           <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
-            <span className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span className="w-3 h-3 bg-emerald-500 rounded-full "></span>
           </div>
         ) : (
           <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
@@ -48,30 +68,80 @@ function WhatsAppBotSetup() {
         )}
         <div>
           <h4 className="text-sm font-bold text-slate-200 uppercase">
-            Status: <span className={status === 'open' ? 'text-emerald-400' : 'text-amber-400'}>{status}</span>
+            Status: <span className={status === 'open' ? 'text-emerald-400' : status === 'qr_expired' ? 'text-rose-400' : 'text-amber-400'}>{status}</span>
           </h4>
           <p className="text-[10px] text-slate-400 mt-1">
-            {status === 'open' ? 'Bot terhubung dan berjalan normal.' : 'Scan QR code untuk menghubungkan WhatsApp.'}
+            {status === 'open' ? 'Bot terhubung dan berjalan normal.' : status === 'qr_expired' ? 'Barcode telah kadaluarsa.' : 'Scan QR code untuk menghubungkan WhatsApp.'}
           </p>
         </div>
       </div>
       
+
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchStatus}
+            className="flex items-center px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-bold transition-colors border border-slate-700"
+          >
+            Cek Status
+          </button>
+          {status === 'open' && (
+            <button
+              onClick={handleLogout}
+              className="flex items-center px-3 py-1.5 bg-red-900/50 hover:bg-red-800/50 text-red-400 rounded text-xs font-bold transition-colors border border-red-700/50"
+            >
+              <PowerOff className="w-3 h-3 mr-2" />
+              Disconnect
+            </button>
+          )}
+        </div>
+      </div>
+
       {status === 'connecting' && qrCode && (
-        <div className="bg-white p-2 rounded-lg">
-           <img src={qrCode} alt="WhatsApp QR Code" className="w-32 h-32" />
+        <div className="flex flex-col justify-center items-center w-full my-4">
+           <div className="bg-white p-4 rounded-xl shadow-lg border border-slate-200 w-full max-w-[300px] aspect-square flex items-center justify-center mb-3">
+             <img src={qrCode} alt="WhatsApp QR Code" className="w-full h-full object-contain" />
+           </div>
+           <p className="text-xs font-bold text-amber-400 uppercase">Kedaluwarsa dalam: {timeLeft}s</p>
+           <button
+             onClick={async () => {
+               setStatus('loading');
+               try {
+                 await axios.post('/api/bot/refresh');
+                 fetchStatus();
+               } catch (err) {
+                 alert('Gagal refresh barcode');
+               }
+             }}
+             className="mt-2 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-bold transition-colors uppercase"
+           >
+             Refresh
+           </button>
+        </div>
+      )}
+      {status === 'qr_expired' && (
+        <div className="flex flex-col justify-center items-center w-full my-4 p-6 bg-slate-800 rounded-xl border border-slate-700">
+           <QrCode className="w-12 h-12 text-slate-500 mb-3" />
+           <p className="text-sm font-bold text-slate-300 mb-2">Barcode Kadaluarsa</p>
+           <p className="text-xs text-slate-400 mb-4 text-center">Silakan refresh untuk mendapatkan barcode baru.</p>
+           <button
+             onClick={async () => {
+               setStatus('loading');
+               try {
+                 await axios.post('/api/bot/refresh');
+                 fetchStatus();
+               } catch (err) {
+                 alert('Gagal refresh barcode');
+               }
+             }}
+             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-bold transition-colors"
+           >
+             Refresh Barcode
+           </button>
         </div>
       )}
 
-      {status === 'open' && (
-        <button
-          onClick={handleLogout}
-          className="flex items-center px-3 py-1.5 bg-red-900/50 hover:bg-red-800/50 text-red-400 rounded text-xs font-bold transition-colors border border-red-700/50"
-        >
-          <PowerOff className="w-3 h-3 mr-2" />
-          Disconnect
-        </button>
-      )}
-      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col">
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col mt-8">
          <div className="px-4 py-3 flex justify-between items-center border-b border-slate-700 bg-slate-900/50">
            <h2 className="text-xs font-bold text-slate-400 uppercase">System Installation & Maintenance</h2>
          </div>
@@ -129,6 +199,58 @@ function WhatsAppBotSetup() {
          </div>
       </div>
 
+    </div>
+  );
+}
+
+
+function EvolutionApiSetup() {
+  const [status, setStatus] = useState<string>('loading');
+  const [data, setData] = useState<any>(null);
+
+  const pingEvo = async () => {
+    try {
+      const res = await axios.get('/api/evolution/ping');
+      setStatus(res.data.status);
+      setData(res.data.data);
+    } catch (err) {
+      setStatus('error');
+    }
+  };
+
+  useEffect(() => {
+    pingEvo();
+  }, []);
+
+  return (
+    <div className="bg-slate-900 border border-slate-700 p-4 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+      <div className="flex items-center space-x-4">
+        {status === 'connected' ? (
+          <div className="w-12 h-12 bg-emerald-900/50 rounded-lg flex items-center justify-center border border-emerald-500/30">
+             <div className="text-emerald-400 font-bold text-xs uppercase">EVO</div>
+          </div>
+        ) : (
+          <div className="w-12 h-12 bg-rose-900/50 rounded-lg flex items-center justify-center border border-rose-500/30 ">
+            <div className="text-rose-400 font-bold text-[10px] uppercase text-center leading-tight">NO<br/>CONN</div>
+          </div>
+        )}
+        
+        <div>
+          <h3 className="text-sm font-bold text-slate-200">Koneksi Evolution API</h3>
+          {status === 'connected' ? (
+            <p className="text-xs text-emerald-400 mt-1 font-mono uppercase">Status: Connected {data?.version ? '(v' + data.version + ')' : ''}</p>
+          ) : status === 'loading' ? (
+            <p className="text-xs text-amber-400 mt-1 uppercase">Mengecek koneksi...</p>
+          ) : (
+            <p className="text-xs text-rose-400 mt-1 uppercase">Gagal terhubung ke backend Evolution API</p>
+          )}
+        </div>
+      </div>
+      <div>
+         <button onClick={pingEvo} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-xs font-bold text-slate-300 uppercase transition-colors">
+            Cek Ulang
+         </button>
+      </div>
     </div>
   );
 }
@@ -226,7 +348,7 @@ export default function Settings() {
             <h3 className="text-[11px] font-bold text-slate-400 uppercase mb-3 flex items-center">
               <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span> Branding
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Nama Program</label>
                 <input
@@ -254,7 +376,7 @@ export default function Settings() {
             <h3 className="text-[11px] font-bold text-slate-400 uppercase mb-3 flex items-center">
               <span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span> Jam Kerja
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Jam Masuk</label>
                 <input
@@ -281,6 +403,7 @@ export default function Settings() {
               <span className="w-2 h-2 bg-emerald-500 rounded-full mr-2"></span> WhatsApp Bot Connection
             </h3>
             <div className="space-y-4">
+              <EvolutionApiSetup />
               <WhatsAppBotSetup />
             </div>
           </div>
@@ -416,7 +539,7 @@ export default function Settings() {
             <h3 className="text-[11px] font-bold text-slate-400 uppercase mb-3 flex items-center">
               <span className="w-2 h-2 bg-emerald-400 rounded-full mr-2"></span> Bonus & Quota
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Bonus Tepat Waktu (Harian)</label>
                 <input

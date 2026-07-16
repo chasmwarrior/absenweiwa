@@ -25,8 +25,8 @@ export default function DashboardChart({ attendances }: { attendances: any[] }) 
   }, [attendances]);
 
   return (
-    <div className="h-64 w-full pt-4">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="w-full pt-4" style={{ height: 256, minHeight: 256 }}>
+      <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
         <BarChart data={data}>
           <XAxis dataKey="date" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />
           <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} />

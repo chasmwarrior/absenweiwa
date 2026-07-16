@@ -4,6 +4,7 @@ import { FileSpreadsheet, Download, Filter, BarChart2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function Reports() {
   const [attendances, setAttendances] = useState<any[]>([]);
@@ -97,8 +98,9 @@ export default function Reports() {
           <BarChart2 className="w-4 h-4 text-indigo-400 mr-2" />
           <h2 className="text-xs font-bold text-slate-400 uppercase">Ringkasan Statistik (Berdasarkan Departemen)</h2>
         </div>
-        <div className="p-4" style={{ height: 300 }}>
-           <ResponsiveContainer width="100%" height="100%">
+        <div className="p-4 h-[300px] w-full">
+           <ErrorBoundary>
+           <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                <XAxis dataKey="dept" stroke="#94a3b8" fontSize={12} />
@@ -114,6 +116,7 @@ export default function Reports() {
                <Bar yAxisId="right" dataKey="totalBonus" name="Total Bonus (Rp)" fill="#10b981" radius={[4, 4, 0, 0]} />
              </BarChart>
            </ResponsiveContainer>
+           </ErrorBoundary>
         </div>
       </div>
 
@@ -124,7 +127,7 @@ export default function Reports() {
         </div>
         
         <div className="p-4 space-y-4">
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                  <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Tanggal Mulai</label>
                  <input

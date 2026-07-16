@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { Users, Settings, LayoutDashboard, Clock, MapPin, MessageSquare, LogOut, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { Users, Settings, LayoutDashboard, Clock, MapPin, MessageSquare, LogOut, FileSpreadsheet, AlertCircle, Menu, X } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,8 +8,10 @@ import { useAuth } from '../contexts/AuthContext';
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
+  useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
   const { logout } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [branding, setBranding] = useState({ app_name: 'AbsensiBot', logo_url: '' });
   const lastPendingIds = useRef<string[]>([]);
 
@@ -102,10 +104,18 @@ export default function Layout() {
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-900 font-sans text-slate-200">
+    <div className="flex h-screen overflow-hidden bg-slate-900 font-sans text-slate-200 relative">
       
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className="w-60 flex-shrink-0 border-r border-slate-700 bg-slate-800 flex flex-col">
+      <div className={`fixed md:static inset-y-0 left-0 z-50 w-64 md:w-60 flex-shrink-0 border-r border-slate-700 bg-slate-800 flex flex-col transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="p-4 border-b border-slate-700 flex items-center h-14">
           <div className="flex items-center space-x-2 text-indigo-400 font-bold text-lg truncate">
             <LayoutDashboard className="w-6 h-6 shrink-0" />
@@ -141,7 +151,7 @@ export default function Layout() {
         </nav>
         
         {/* Branding Placeholder */}
-        <div className="flex-1 p-4 flex flex-col items-center justify-end space-y-3 select-none overflow-hidden min-h-0 pb-6">
+        <div className="flex-1 p-4 flex flex-col items-center justify-end space-y-3 select-none overflow-hidden pb-6">
             {branding.logo_url ? (
                <img src={branding.logo_url} alt="Logo" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
             ) : (
@@ -158,9 +168,15 @@ export default function Layout() {
         </div>
       </div>
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        <header className="h-14 border-b border-slate-700 flex items-center px-6 bg-slate-800">
-          <h1 className="text-sm font-bold text-slate-200 uppercase tracking-wide">
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="h-14 border-b border-slate-700 flex items-center px-4 md:px-6 bg-slate-800 shrink-0">
+          <button 
+            className="md:hidden mr-4 p-1 text-slate-400 hover:text-white"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <h1 className="text-sm font-bold text-slate-200 uppercase tracking-wide truncate">
             {navItems.find((i) => i.path === location.pathname)?.name || 'Admin Panel'}
           </h1>
         </header>
