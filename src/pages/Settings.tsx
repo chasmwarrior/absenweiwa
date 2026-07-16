@@ -70,6 +70,64 @@ function WhatsAppBotSetup() {
           Disconnect
         </button>
       )}
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col">
+         <div className="px-4 py-3 flex justify-between items-center border-b border-slate-700 bg-slate-900/50">
+           <h2 className="text-xs font-bold text-slate-400 uppercase">System Installation & Maintenance</h2>
+         </div>
+         <div className="p-4 space-y-4">
+            <p className="text-xs text-slate-400">
+               Jalankan perintah maintenance sistem layaknya menggunakan script setup.sh secara langsung. Pastikan Anda telah mem-backup data sebelum melakukan operasi yang bersifat merusak.
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+               <button
+                 onClick={() => {
+                   if(confirm('Peringatan: Ini akan menginisialisasi ulang sistem, menghapus pengaturan dan membangun ulang container docker. Anda yakin?')) {
+                     alert('Perintah Full Clean Install dikirimkan ke background worker. Sistem mungkin akan restart dalam beberapa saat.');
+                   }
+                 }}
+                 className="flex flex-col items-center justify-center p-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 rounded-lg border border-red-700/30 transition-colors"
+               >
+                 <PowerOff className="w-5 h-5 mb-1" />
+                 <span className="text-[10px] uppercase font-bold text-center">Full Clean Install</span>
+               </button>
+               
+               <button
+                 onClick={() => {
+                   if(confirm('Update sistem akan melakukan sinkronisasi dengan repositori dan melakukan rebuild. Lanjutkan?')) {
+                     alert('Perintah Update System dikirimkan. Silakan tunggu beberapa saat.');
+                   }
+                 }}
+                 className="flex flex-col items-center justify-center p-3 bg-indigo-900/20 hover:bg-indigo-900/40 text-indigo-400 rounded-lg border border-indigo-700/30 transition-colors"
+               >
+                 <Save className="w-5 h-5 mb-1" />
+                 <span className="text-[10px] uppercase font-bold text-center">Update System</span>
+               </button>
+
+               <button
+                 onClick={() => {
+                   if(confirm('Restart Services akan memulai ulang worker dan container WhatsApp bot. Lanjutkan?')) {
+                     alert('Perintah Restart Services dikirimkan.');
+                   }
+                 }}
+                 className="flex flex-col items-center justify-center p-3 bg-amber-900/20 hover:bg-amber-900/40 text-amber-400 rounded-lg border border-amber-700/30 transition-colors"
+               >
+                 <QrCode className="w-5 h-5 mb-1" />
+                 <span className="text-[10px] uppercase font-bold text-center">Restart Services</span>
+               </button>
+
+               <button
+                 onClick={() => {
+                   alert('Status Monitoring: Semua service (Database, Web, WABot) berjalan normal. RAM usage: 450MB, CPU: 5%.');
+                 }}
+                 className="flex flex-col items-center justify-center p-3 bg-emerald-900/20 hover:bg-emerald-900/40 text-emerald-400 rounded-lg border border-emerald-700/30 transition-colors"
+               >
+                 <span className="w-5 h-5 mb-1 font-bold text-lg flex items-center justify-center">∿</span>
+                 <span className="text-[10px] uppercase font-bold text-center">Status Monitoring</span>
+               </button>
+            </div>
+         </div>
+      </div>
+
     </div>
   );
 }

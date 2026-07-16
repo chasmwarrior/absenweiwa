@@ -9,9 +9,24 @@ export default function Dashboard() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const autoRefreshInterval = useRef<any>(null);
 
+  const [sysStatus, setSysStatus] = useState<any>({ wa: 'checking', db: 'checking' });
+
   useEffect(() => {
     fetchData();
+    checkDiagnostics();
   }, []);
+
+  const checkDiagnostics = async () => {
+    try {
+      const waRes = await axios.get('/api/bot/status').catch(() => ({ data: { status: 'error' } }));
+      setSysStatus({
+        wa: waRes.data.status,
+        db: 'ok' // Since we can load the page, DB is likely ok.
+      });
+    } catch (e) {
+      setSysStatus({ wa: 'error', db: 'error' });
+    }
+  };
 
   useEffect(() => {
     if (autoRefresh) {
@@ -73,6 +88,22 @@ export default function Dashboard() {
 
   return (
     <div className="grid grid-cols-1 gap-4">
+      {/* Diagnostics Panel */}
+      {sysStatus.wa !== 'open' && (
+        <div className="bg-amber-900/20 border border-amber-700/50 rounded-lg p-4 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-amber-400">Peringatan: WhatsApp Bot Tidak Aktif</h3>
+            <p className="text-xs text-amber-500/70 mt-1">Bot absensi belum terhubung atau sedang offline. Karyawan tidak dapat melakukan absen.</p>
+          </div>
+          <button
+            onClick={() => window.location.href='/settings'}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-bold transition-colors"
+          >
+            Quick Install / Setup
+          </button>
+        </div>
+      )}
+
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">

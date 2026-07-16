@@ -155,11 +155,11 @@ export default function Layout() {
         </nav>
         
         {/* Branding Placeholder */}
-        <div className="flex-1 p-4 flex flex-col items-center justify-end space-y-3 opacity-50 select-none overflow-hidden min-h-0 pb-6">
+        <div className="flex-1 p-4 flex flex-col items-center justify-end space-y-3 select-none overflow-hidden min-h-0 pb-6">
             {branding.logo_url ? (
                <img src={branding.logo_url} alt="Logo" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.style.display = 'none')} />
             ) : (
-               <Clock className="w-24 h-24 text-slate-500 shrink-0" />
+               <Clock className="w-24 h-24 text-slate-500 shrink-0 opacity-50" />
             )}
             <span className="text-xs font-bold text-slate-500 tracking-widest uppercase text-center shrink-0">{branding.app_name}</span>
         </div>
