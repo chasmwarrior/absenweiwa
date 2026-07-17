@@ -254,6 +254,18 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     // Find templates
     const templatesResult = await db.select().from(settings).where(eq(settings.key, 'bot_templates')).limit(1);
     const botTemplates = templatesResult.length > 0 ? JSON.parse(templatesResult[0].value) : null;
+
+    // Allowed Groups Check
+    if (isGroup) {
+        const allowedGroupsStr = botTemplates?.features?.allowed_groups || '';
+        if (allowedGroupsStr.trim() !== '') {
+            const allowedGroups = allowedGroupsStr.split(',').map((g: string) => g.trim());
+            if (!allowedGroups.includes(remoteJid)) {
+                return; // Ignore messages from unallowed groups
+            }
+        }
+    }
+
     const cmds = botTemplates?.commands || { check_in: '!hadir', check_out: '!pulang', info: '!info', help: '!help' };
     const replies = botTemplates?.replies || { 
         not_registered: 'Anda tidak terdaftar', 

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { format } from "date-fns";
 import axios from "axios";
 import { Router } from 'express';
@@ -60,7 +61,7 @@ apiRouter.post('/phone-requests', async (req, res) => {
       return res.status(400).json({ error: 'Anda sudah memiliki pengajuan ganti nomor yang sedang diproses.' });
     }
     
-    const crypto = require('crypto');
+
     await db.insert(phoneNumberRequests).values({
         id: crypto.randomUUID(),
         user_id: old_number,
