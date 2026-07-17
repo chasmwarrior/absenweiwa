@@ -1,3 +1,4 @@
+import fs from "fs";
 import crypto from "crypto";
 import { format } from "date-fns";
 import axios from "axios";
@@ -650,6 +651,14 @@ apiRouter.get('/data/audit-log', async (req, res) => {
 });
 
 
+
+apiRouter.get('/debug-logs', async (req, res) => {
+  try {
+
+    const logs = fs.existsSync('debug.log') ? fs.readFileSync('debug.log', 'utf8') : 'No debug logs.';
+    res.send(logs);
+  } catch(e) { res.send(e.message); }
+});
 
 apiRouter.get('/audit-logs', async (req, res) => {
   try {

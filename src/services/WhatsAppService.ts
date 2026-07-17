@@ -233,12 +233,16 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     const senderJid = isGroup && participant ? participant : remoteJid;
     const senderNumber = senderJid.split('@')[0];
     const privateJid = `${senderNumber}@s.whatsapp.net`;
-    if (isGroup) userLastGroup.set(user?.id || senderNumber, remoteJid);
+    if (isGroup) userLastGroup.set(senderNumber, remoteJid);
     const replyJid = privateJid; // For detailed replies
 
     // Strip mentions from text message (e.g. "@628... !hadir" -> "!hadir")
     const cleanTextMessage = textMessage.replace(/@[0-9]+/g, '').trim();
     const rawCommand = cleanTextMessage.toLowerCase();
+
+    console.log(`[DEBUG WA] senderNumber: ${senderNumber}, isGroup: ${isGroup}, remoteJid: ${remoteJid}`);
+    console.log(`[DEBUG WA] raw text: ${textMessage}, parsed command: ${rawCommand}`);
+
     const command = rawCommand.replace(/^!/, ''); // Strip ! at the beginning for all commands
 
     // Global Commands (Bypass Registration Check)

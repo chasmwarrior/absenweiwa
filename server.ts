@@ -2,6 +2,24 @@ import express from 'express';
 import path from 'path';
 import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
+
+import fsSync from 'fs';
+import util from 'util';
+
+const logFile = fsSync.createWriteStream('debug.log', { flags: 'a' });
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+console.log = function (...args) {
+  logFile.write(util.format.apply(null, args) + '\n');
+  originalConsoleLog.apply(console, args);
+};
+
+console.error = function (...args) {
+  logFile.write('ERROR: ' + util.format.apply(null, args) + '\n');
+  originalConsoleError.apply(console, args);
+};
+
 import { db } from './src/db/index.js';
 import { settings, users, attendances } from './src/db/schema.js';
 import { eq, and, isNull } from 'drizzle-orm';
