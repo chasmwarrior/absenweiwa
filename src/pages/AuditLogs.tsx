@@ -4,6 +4,8 @@ import { format } from 'date-fns';
 import { Activity, Search } from 'lucide-react';
 
 export default function AuditLogs() {
+  const [viewDebug, setViewDebug] = useState(false);
+  const [debugLogText, setDebugLogText] = useState('');
   const [logs, setLogs] = useState<any[]>([]);
   const [search, setSearch] = useState('');
 
@@ -20,6 +22,21 @@ export default function AuditLogs() {
     }
   };
 
+  const fetchDebugLogs = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const debugRes = await axios.get('/api/debug-logs', { headers: { Authorization: `Bearer ${token}` } });
+      setDebugLogText(debugRes.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleToggleDebug = () => {
+    if (!viewDebug) fetchDebugLogs();
+    setViewDebug(!viewDebug);
+  };
+
   const filteredLogs = logs.filter(log => log.details.toLowerCase().includes(search.toLowerCase()) || log.action.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -28,6 +45,8 @@ export default function AuditLogs() {
         <h2 className="text-xl font-bold text-slate-200 flex items-center">
           <Activity className="w-5 h-5 mr-2 text-indigo-400" />
           Log Aktivitas Sistem
+          <button onClick={handleToggleDebug} className="ml-4 px-2 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded">Toggle Debug Mode</button>
+          {viewDebug && <button onClick={fetchDebugLogs} className="ml-2 px-2 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 rounded">Refresh Logs</button>}
         </h2>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -52,7 +71,7 @@ export default function AuditLogs() {
               </tr>
             </thead>
             <tbody>
-              {filteredLogs.map(log => (
+              {viewDebug ? (<tr><td colSpan={3} className="p-4 text-xs font-mono whitespace-pre-wrap text-slate-300">{debugLogText}</td></tr>) : filteredLogs.map(log => (
                 <tr key={log.id} className="border-b border-slate-700/50 hover:bg-slate-750 text-sm text-slate-300">
                   <td className="p-3 whitespace-nowrap">{format(new Date(log.created_at), 'dd MMM yyyy HH:mm:ss')}</td>
                   <td className="p-3 font-mono text-xs">
@@ -63,7 +82,7 @@ export default function AuditLogs() {
                   <td className="p-3">{log.details}</td>
                 </tr>
               ))}
-              {filteredLogs.length === 0 && (
+              {!viewDebug && filteredLogs.length === 0 && (
                 <tr>
                   <td colSpan={3} className="p-8 text-center text-slate-500">
                     Belum ada catatan aktivitas.

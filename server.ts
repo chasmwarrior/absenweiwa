@@ -2,6 +2,44 @@ import express from 'express';
 import path from 'path';
 import cors from 'cors';
 import { createServer as createViteServer } from 'vite';
+
+import fsSync from 'fs';
+import util from 'util';
+
+let logFile = fsSync.createWriteStream('debug.log', { flags: 'a' });
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+let logCount = 0;
+function checkRotate() {
+  logCount++;
+  if (logCount % 100 !== 0) return; // Only check size every 100 logs
+  try {
+    const stats = fsSync.statSync('debug.log');
+    if (stats.size > 2 * 1024 * 1024) { // 2MB limit
+      try {
+        fsSync.renameSync('debug.log', 'debug.log.old');
+        logFile = fsSync.createWriteStream('debug.log', { flags: 'a' });
+      } catch (renameErr) {
+        // If rename fails (e.g. file lock), we just recreate the stream to empty it
+        logFile = fsSync.createWriteStream('debug.log', { flags: 'w' });
+      }
+    }
+  } catch (e) {}
+}
+
+console.log = function (...args) {
+  checkRotate();
+  logFile.write(util.format.apply(null, args) + '\n');
+  originalConsoleLog.apply(console, args);
+};
+
+console.error = function (...args) {
+  checkRotate();
+  logFile.write('ERROR: ' + util.format.apply(null, args) + '\n');
+  originalConsoleError.apply(console, args);
+};
+
 import { db } from './src/db/index.js';
 import { settings, users, attendances } from './src/db/schema.js';
 import { eq, and, isNull } from 'drizzle-orm';

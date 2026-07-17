@@ -1,3 +1,5 @@
+import fs from "fs";
+import crypto from "crypto";
 import { format } from "date-fns";
 import axios from "axios";
 import { Router } from 'express';
@@ -28,6 +30,19 @@ const formatPhone = (phone: string) => {
 import { userSyncService } from '../services/UserSyncService.js';
 import { sendWhatsAppMessage } from '../services/WhatsAppService.js';
 export const apiRouter = Router();
+
+// Debug & Trace Middleware for Admin Dashboard
+apiRouter.use((req, res, next) => {
+    // Only log write methods (POST, PUT, DELETE) or debug-logs to avoid console spam from regular GET polling
+    if (['POST', 'PUT', 'DELETE'].includes(req.method) || req.url.includes('/debug-logs')) {
+        console.log(`[DEBUG API] ${req.method} ${req.url}`);
+        if (req.body && Object.keys(req.body).length > 0) {
+            console.log(`[DEBUG API BODY] ${JSON.stringify(req.body)}`);
+        }
+    }
+    next();
+});
+
 
 
 // POST Public Phone Number Request
@@ -60,7 +75,7 @@ apiRouter.post('/phone-requests', async (req, res) => {
       return res.status(400).json({ error: 'Anda sudah memiliki pengajuan ganti nomor yang sedang diproses.' });
     }
     
-    const crypto = require('crypto');
+
     await db.insert(phoneNumberRequests).values({
         id: crypto.randomUUID(),
         user_id: old_number,
@@ -649,6 +664,47 @@ apiRouter.get('/data/audit-log', async (req, res) => {
 });
 
 
+
+// Add minimal authorization check (e.g., checking if user has valid JWT and is admin) for debug-logs
+const authenticateAdmin = (req: any, res: any, next: any) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (decoded.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+    next();
+  } catch (e) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+};
+
+apiRouter.get('/debug-logs', authenticateAdmin, async (req, res) => {
+  try {
+
+
+    const fsPromises = fs.promises;
+    let logs = 'No debug logs.';
+    try {
+      await fsPromises.access('debug.log', fs.constants.F_OK);
+      const stats = await fsPromises.stat('debug.log');
+      const MAX_BYTES = 50 * 1024; // 50 KB limit
+
+      if (stats.size > MAX_BYTES) {
+        const buffer = Buffer.alloc(MAX_BYTES);
+        const handle = await fsPromises.open('debug.log', 'r');
+        await handle.read(buffer, 0, MAX_BYTES, stats.size - MAX_BYTES);
+        await handle.close();
+        logs = '...[TRUNCATED]\n' + buffer.toString('utf8');
+      } else {
+        logs = await fsPromises.readFile('debug.log', 'utf8');
+      }
+    } catch (err) {
+      // File doesn't exist or is locked
+    }
+
+    res.send(logs);
+  } catch(e) { res.send(e.message); }
+});
 
 apiRouter.get('/audit-logs', async (req, res) => {
   try {

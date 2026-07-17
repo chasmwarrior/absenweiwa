@@ -153,12 +153,33 @@ export async function initWABot() {
             const m = messages[0];
             if (!m.message || m.key.fromMe) return;
 
-            const remoteJid = m.key.remoteJid;
+            let remoteJid = m.key.remoteJid;
+            // Handle Baileys Multi-Device @lid issue
+            if (remoteJid?.includes('@lid') && (m.key as any).remoteJidAlt && (m.key as any).remoteJidAlt.includes('@s.whatsapp.net')) {
+                remoteJid = (m.key as any).remoteJidAlt;
+            }
+            if (m.key.participant?.includes('@lid') && (m.key as any).participantAlt && (m.key as any).participantAlt.includes('@s.whatsapp.net')) {
+                m.key.participant = (m.key as any).participantAlt;
+            }
             const textMessage = m.message.conversation || m.message.extendedTextMessage?.text || '';
             const locationMessage = m.message.locationMessage;
 
             // Handle logic here, similar to webhook.ts but native
             const imageMessage = m.message.imageMessage;
+
+            console.log("========== INCOMING MESSAGE TRACE ==========");
+            try {
+                 // Deep clone strictly the parts we want to log to avoid mutating original payload and fix TS error
+                 const mClone = JSON.parse(JSON.stringify(m, (key, value) => {
+                      if (key === 'imageMessage') return "[IMAGE BUFFER OMITTED]";
+                      return value;
+                 }));
+                 console.log(JSON.stringify(mClone, null, 2));
+            } catch (e) {
+                 console.log("[DEBUG] Circular reference or error in message stringify.");
+            }
+            console.log("============================================");
+
             await handleIncomingMessage(remoteJid, textMessage, locationMessage, m.key.participant, imageMessage);
         });
     } catch (error) {
@@ -233,12 +254,16 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     const senderJid = isGroup && participant ? participant : remoteJid;
     const senderNumber = senderJid.split('@')[0];
     const privateJid = `${senderNumber}@s.whatsapp.net`;
-    if (isGroup) userLastGroup.set(user?.id || senderNumber, remoteJid);
+    if (isGroup) userLastGroup.set(senderNumber, remoteJid);
     const replyJid = privateJid; // For detailed replies
 
     // Strip mentions from text message (e.g. "@628... !hadir" -> "!hadir")
     const cleanTextMessage = textMessage.replace(/@[0-9]+/g, '').trim();
     const rawCommand = cleanTextMessage.toLowerCase();
+
+    console.log(`[DEBUG WA] senderNumber: ${senderNumber}, isGroup: ${isGroup}, remoteJid: ${remoteJid}`);
+    console.log(`[DEBUG WA] raw text: ${textMessage}, parsed command: ${rawCommand}`);
+
     const command = rawCommand.replace(/^!/, ''); // Strip ! at the beginning for all commands
 
     // Global Commands (Bypass Registration Check)
@@ -254,6 +279,18 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     // Find templates
     const templatesResult = await db.select().from(settings).where(eq(settings.key, 'bot_templates')).limit(1);
     const botTemplates = templatesResult.length > 0 ? JSON.parse(templatesResult[0].value) : null;
+
+    // Allowed Groups Check
+    if (isGroup) {
+        const allowedGroupsStr = botTemplates?.features?.allowed_groups || '';
+        if (allowedGroupsStr.trim() !== '') {
+            const allowedGroups = allowedGroupsStr.split(',').map((g: string) => g.trim());
+            if (!allowedGroups.includes(remoteJid)) {
+                return; // Ignore messages from unallowed groups
+            }
+        }
+    }
+
     const cmds = botTemplates?.commands || { check_in: '!hadir', check_out: '!pulang', info: '!info', help: '!help' };
     const replies = botTemplates?.replies || { 
         not_registered: 'Anda tidak terdaftar', 
@@ -261,7 +298,13 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     };
 
     // Find user from cache
-    const user = userSyncService.getUser(senderNumber);
+    let user = userSyncService.getUser(senderNumber);
+
+    // Fallback: If sender is a LID, log it heavily for debugging so the admin can identify it and whitelist it.
+    // Baileys multi-device sometimes obscures the true phone number in @lid strings.
+    if (!user && senderJid.includes('@lid')) {
+         console.warn(`[DEBUG WA LID WARNING] Unknown LID sender: ${senderJid}. User must register this LID directly or map it if phone number is unavailable.`);
+    }
     
     if (!user) {
        await sendWhatsAppMessage(remoteJid, replaceVars(replies.not_registered, {}));
