@@ -34,7 +34,7 @@ export default function BotSettings() {
   const handleSave = async () => {
     try {
       await axios.post('/api/bot-templates', templates);
-      toast.success('Pengaturan bot berhasil disimpan!');
+      toast.success('Pengaturan sistem berhasil disimpan!');
     } catch (err) {
       toast.error('Gagal menyimpan pengaturan bot');
     }
@@ -106,7 +106,7 @@ export default function BotSettings() {
           <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4 flex justify-between items-center">
             <div>
               <h3 className="text-sm font-bold text-indigo-400">Custom Commands & Variabel Pesan</h3>
-              <p className="text-xs text-indigo-300 mt-1">Kelola perintah tambahan bot dan lihat panduan variabel pesan lengkap.</p>
+              <p className="text-xs text-indigo-300 mt-1">Kelola perintah tambahan sistem dan lihat panduan variabel pesan lengkap.</p>
             </div>
             <a href="/custom-commands" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors">
               Buka Pengaturan
@@ -149,7 +149,7 @@ export default function BotSettings() {
                   onChange={(e) => setTemplates({ ...templates, features: { ...templates.features, allowed_groups: e.target.value } })}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 focus:border-indigo-500 outline-none transition-colors"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Biarkan kosong jika bot boleh merespon di semua grup.</p>
+                <p className="text-[10px] text-slate-500 mt-1">Biarkan kosong jika sistem boleh merespon di semua grup.</p>
               </div>
               <label className="flex items-center space-x-3 cursor-pointer">
                 <input
@@ -255,7 +255,7 @@ export default function BotSettings() {
               className="w-full px-5 py-4 flex justify-between items-center bg-slate-800 hover:bg-slate-700/50 transition-colors"
             >
               <h3 className="text-[11px] font-bold text-slate-400 uppercase flex items-center">
-                <span className="w-2 h-2 bg-rose-500 rounded-full mr-2"></span> Balasan Bot (Replies)
+                <span className="w-2 h-2 bg-rose-500 rounded-full mr-2"></span> Balasan Sistem (Replies)
               </h3>
               {isRepliesOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
             </button>

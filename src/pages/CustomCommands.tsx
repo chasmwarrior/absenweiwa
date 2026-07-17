@@ -68,7 +68,7 @@ export default function CustomCommands() {
             <Terminal className="w-6 h-6 text-emerald-500" />
             Custom Commands
           </h2>
-          <p className="text-slate-400 text-sm mt-1">Kelola perintah kustom untuk bot WhatsApp</p>
+          <p className="text-slate-400 text-sm mt-1">Kelola perintah kustom untuk WhatsApp</p>
         </div>
         <button
           onClick={handleSave}

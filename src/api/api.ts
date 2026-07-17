@@ -430,8 +430,16 @@ let statusName = 'Absensi';
 // PUT update attendance approval
 apiRouter.put('/attendances/:id/approval', async (req, res) => {
   try {
-    const { status } = req.body;
-    await db.update(attendances).set({ approval_status: status, notes: 'Diproses melalui Pending Actions' }).where(eq(attendances.id, req.params.id));
+    const { status, notes, penalty_amount, bonus_amount, attendance_status } = req.body;
+    const updateData: any = {
+        approval_status: status,
+        notes: notes || (status === 'approved' ? 'Disetujui Admin' : 'Ditolak Admin')
+    };
+    if (penalty_amount !== undefined) updateData.penalty_amount = penalty_amount;
+    if (bonus_amount !== undefined) updateData.bonus_amount = bonus_amount;
+    if (attendance_status !== undefined) updateData.status = attendance_status;
+
+    await db.update(attendances).set(updateData).where(eq(attendances.id, req.params.id));
 
     const attRecord = await db.select().from(attendances).where(eq(attendances.id, req.params.id)).limit(1);
     if (attRecord.length > 0) {
@@ -485,6 +493,16 @@ apiRouter.post('/data/clear-logs', async (req, res) => {
     }
 
     res.json({ success: true, deleted: toDelete.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST reset attendance data only
+apiRouter.post('/data/reset-attendances', async (req, res) => {
+  try {
+    await db.delete(attendances);
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
