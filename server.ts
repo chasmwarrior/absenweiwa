@@ -17,12 +17,13 @@ function checkRotate() {
   try {
     const stats = fsSync.statSync('debug.log');
     if (stats.size > 2 * 1024 * 1024) { // 2MB limit
-      // Close synchronously and recreate immediately to avoid write-after-end
-      if (logFile) {
-         logFile.close();
+      try {
+        fsSync.renameSync('debug.log', 'debug.log.old');
+        logFile = fsSync.createWriteStream('debug.log', { flags: 'a' });
+      } catch (renameErr) {
+        // If rename fails (e.g. file lock), we just recreate the stream to empty it
+        logFile = fsSync.createWriteStream('debug.log', { flags: 'w' });
       }
-      fsSync.renameSync('debug.log', 'debug.log.old');
-      logFile = fsSync.createWriteStream('debug.log', { flags: 'a' });
     }
   } catch (e) {}
 }
