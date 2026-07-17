@@ -153,7 +153,14 @@ export async function initWABot() {
             const m = messages[0];
             if (!m.message || m.key.fromMe) return;
 
-            const remoteJid = m.key.remoteJid;
+            let remoteJid = m.key.remoteJid;
+            // Handle Baileys Multi-Device @lid issue
+            if (remoteJid?.includes('@lid') && (m.key as any).remoteJidAlt && (m.key as any).remoteJidAlt.includes('@s.whatsapp.net')) {
+                remoteJid = (m.key as any).remoteJidAlt;
+            }
+            if (m.key.participant?.includes('@lid') && (m.key as any).participantAlt && (m.key as any).participantAlt.includes('@s.whatsapp.net')) {
+                m.key.participant = (m.key as any).participantAlt;
+            }
             const textMessage = m.message.conversation || m.message.extendedTextMessage?.text || '';
             const locationMessage = m.message.locationMessage;
 
@@ -162,10 +169,11 @@ export async function initWABot() {
 
             console.log("========== INCOMING MESSAGE TRACE ==========");
             try {
-                 const mClone = { ...m };
-                 if (mClone.message?.imageMessage) {
-                     mClone.message.imageMessage = "[IMAGE BUFFER OMITTED]";
-                 }
+                 // Deep clone strictly the parts we want to log to avoid mutating original payload and fix TS error
+                 const mClone = JSON.parse(JSON.stringify(m, (key, value) => {
+                      if (key === 'imageMessage') return "[IMAGE BUFFER OMITTED]";
+                      return value;
+                 }));
                  console.log(JSON.stringify(mClone, null, 2));
             } catch (e) {
                  console.log("[DEBUG] Circular reference or error in message stringify.");

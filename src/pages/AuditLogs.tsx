@@ -24,7 +24,8 @@ export default function AuditLogs() {
 
   const fetchDebugLogs = async () => {
     try {
-      const debugRes = await axios.get('/api/debug-logs');
+      const token = localStorage.getItem('token');
+      const debugRes = await axios.get('/api/debug-logs', { headers: { Authorization: `Bearer ${token}` } });
       setDebugLogText(debugRes.data);
     } catch (err) {
       console.error(err);
