@@ -6,16 +6,35 @@ import { createServer as createViteServer } from 'vite';
 import fsSync from 'fs';
 import util from 'util';
 
-const logFile = fsSync.createWriteStream('debug.log', { flags: 'a' });
+let logFile = fsSync.createWriteStream('debug.log', { flags: 'a' });
 const originalConsoleLog = console.log;
 const originalConsoleError = console.error;
 
+let logCount = 0;
+function checkRotate() {
+  logCount++;
+  if (logCount % 100 !== 0) return; // Only check size every 100 logs
+  try {
+    const stats = fsSync.statSync('debug.log');
+    if (stats.size > 2 * 1024 * 1024) { // 2MB limit
+      // Close synchronously and recreate immediately to avoid write-after-end
+      if (logFile) {
+         logFile.close();
+      }
+      fsSync.renameSync('debug.log', 'debug.log.old');
+      logFile = fsSync.createWriteStream('debug.log', { flags: 'a' });
+    }
+  } catch (e) {}
+}
+
 console.log = function (...args) {
+  checkRotate();
   logFile.write(util.format.apply(null, args) + '\n');
   originalConsoleLog.apply(console, args);
 };
 
 console.error = function (...args) {
+  checkRotate();
   logFile.write('ERROR: ' + util.format.apply(null, args) + '\n');
   originalConsoleError.apply(console, args);
 };

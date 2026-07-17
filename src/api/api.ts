@@ -655,7 +655,23 @@ apiRouter.get('/data/audit-log', async (req, res) => {
 apiRouter.get('/debug-logs', async (req, res) => {
   try {
 
-    const logs = fs.existsSync('debug.log') ? fs.readFileSync('debug.log', 'utf8') : 'No debug logs.';
+
+    let logs = 'No debug logs.';
+    if (fs.existsSync('debug.log')) {
+      const stats = fs.statSync('debug.log');
+      const MAX_BYTES = 50 * 1024; // 50 KB limit
+
+      if (stats.size > MAX_BYTES) {
+        const buffer = Buffer.alloc(MAX_BYTES);
+        const fd = fs.openSync('debug.log', 'r');
+        fs.readSync(fd, buffer, 0, MAX_BYTES, stats.size - MAX_BYTES);
+        fs.closeSync(fd);
+        logs = '...[TRUNCATED]\n' + buffer.toString('utf8');
+      } else {
+        logs = fs.readFileSync('debug.log', 'utf8');
+      }
+    }
+
     res.send(logs);
   } catch(e) { res.send(e.message); }
 });

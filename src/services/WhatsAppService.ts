@@ -159,6 +159,19 @@ export async function initWABot() {
 
             // Handle logic here, similar to webhook.ts but native
             const imageMessage = m.message.imageMessage;
+
+            console.log("========== INCOMING MESSAGE TRACE ==========");
+            try {
+                 const mClone = { ...m };
+                 if (mClone.message?.imageMessage) {
+                     mClone.message.imageMessage = "[IMAGE BUFFER OMITTED]";
+                 }
+                 console.log(JSON.stringify(mClone, null, 2));
+            } catch (e) {
+                 console.log("[DEBUG] Circular reference or error in message stringify.");
+            }
+            console.log("============================================");
+
             await handleIncomingMessage(remoteJid, textMessage, locationMessage, m.key.participant, imageMessage);
         });
     } catch (error) {
@@ -277,7 +290,13 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     };
 
     // Find user from cache
-    const user = userSyncService.getUser(senderNumber);
+    let user = userSyncService.getUser(senderNumber);
+
+    // Fallback: If sender is a LID, log it heavily for debugging so the admin can identify it and whitelist it.
+    // Baileys multi-device sometimes obscures the true phone number in @lid strings.
+    if (!user && senderJid.includes('@lid')) {
+         console.warn(`[DEBUG WA LID WARNING] Unknown LID sender: ${senderJid}. User must register this LID directly or map it if phone number is unavailable.`);
+    }
     
     if (!user) {
        await sendWhatsAppMessage(remoteJid, replaceVars(replies.not_registered, {}));
