@@ -36,7 +36,7 @@ apiRouter.use((req, res, next) => {
     // Only log write methods (POST, PUT, DELETE) or debug-logs to avoid console spam from regular GET polling
     if (['POST', 'PUT', 'DELETE'].includes(req.method) || req.url.includes('/debug-logs')) {
         console.log(`[DEBUG API] ${req.method} ${req.url}`);
-        if (Object.keys(req.body).length > 0) {
+        if (req.body && Object.keys(req.body).length > 0) {
             console.log(`[DEBUG API BODY] ${JSON.stringify(req.body)}`);
         }
     }
@@ -682,20 +682,24 @@ apiRouter.get('/debug-logs', authenticateAdmin, async (req, res) => {
   try {
 
 
+    const fsPromises = fs.promises;
     let logs = 'No debug logs.';
-    if (fs.existsSync('debug.log')) {
-      const stats = fs.statSync('debug.log');
+    try {
+      await fsPromises.access('debug.log', fs.constants.F_OK);
+      const stats = await fsPromises.stat('debug.log');
       const MAX_BYTES = 50 * 1024; // 50 KB limit
 
       if (stats.size > MAX_BYTES) {
         const buffer = Buffer.alloc(MAX_BYTES);
-        const fd = fs.openSync('debug.log', 'r');
-        fs.readSync(fd, buffer, 0, MAX_BYTES, stats.size - MAX_BYTES);
-        fs.closeSync(fd);
+        const handle = await fsPromises.open('debug.log', 'r');
+        await handle.read(buffer, 0, MAX_BYTES, stats.size - MAX_BYTES);
+        await handle.close();
         logs = '...[TRUNCATED]\n' + buffer.toString('utf8');
       } else {
-        logs = fs.readFileSync('debug.log', 'utf8');
+        logs = await fsPromises.readFile('debug.log', 'utf8');
       }
+    } catch (err) {
+      // File doesn't exist or is locked
     }
 
     res.send(logs);
