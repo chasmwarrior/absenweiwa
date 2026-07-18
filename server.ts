@@ -48,6 +48,8 @@ import { apiRouter } from './src/api/api.js';
 import bcrypt from 'bcryptjs';
 import cron from 'node-cron';
 import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+// from 'date-fns';
 
 async function startServer() {
   const app = express();
@@ -76,7 +78,7 @@ async function startServer() {
        if (!workStart) return;
 
        const now = new Date();
-       const nowStr = format(now, 'HH:mm');
+       const nowStr = formatInTimeZone(now, 'Asia/Jakarta', 'HH:mm');
 
        // Calculate 5 mins before start
        const [hrStr, minStr] = workStart.split(':');
@@ -93,7 +95,7 @@ async function startServer() {
 
        if (nowStr === reminderTimeStr) {
            console.log('Running check-in reminder cron job...');
-           const today = format(now, 'yyyy-MM-dd');
+           const today = formatInTimeZone(now, 'Asia/Jakarta', 'yyyy-MM-dd');
 
            const allUsers = await db.select().from(users).where(eq(users.role, 'employee'));
            const todayAttendances = await db.select().from(attendances).where(eq(attendances.date, today));
@@ -114,7 +116,7 @@ async function startServer() {
   cron.schedule('59 23 * * *', async () => {
      console.log('Running auto-checkout cron job...');
      try {
-       const today = format(new Date(), 'yyyy-MM-dd');
+       const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
        const pendingCheckouts = await db.select().from(attendances)
          .where(and(eq(attendances.date, today), isNull(attendances.check_out_time)));
        

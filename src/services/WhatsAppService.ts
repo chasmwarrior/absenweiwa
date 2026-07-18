@@ -11,6 +11,8 @@ import { eq, desc, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+// from 'date-fns';
 
 const lastMessageTimes = new Map<string, number>();
 const userLastGroup = new Map<string, string>();
@@ -341,7 +343,7 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     }
 
 
-    const nowTime = format(new Date(), 'HH:mm');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm');
     const varData: any = {
        name: user.name,
        time: nowTime,
@@ -428,8 +430,8 @@ const replaceVars = (template: string, data: any) => {
 };
 
 async function handleCheckIn(user: any, remoteJid: string, replies: any, cmds: any, varData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const nowTime = format(new Date(), 'HH:mm:ss');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm:ss');
     
     
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
@@ -505,16 +507,21 @@ async function handleCheckIn(user: any, remoteJid: string, replies: any, cmds: a
         msg = replaceVars(replies.check_in_success || 'Halo {name}, absensi MASUK berhasil pada pukul {time}.', varData);
     }
 
+    // Location prompt is handled by features.require_location_check_in setting.
+    // However user prefers to only ask if necessary or out of geofence.
+    // Since we don't know geofence until they send location, we just ask for it globally if required,
+    // but rephrase to explain WHY.
     if (features.require_location_check_in !== false) {
-        msg += `\nMohon kirimkan *Live Location* Anda.`;
+        expectedMedia.set(user.id, true); // We expect a location/media if they are outside
+        msg += `\nSistem memerlukan verifikasi lokasi. Mohon kirimkan *Live Location* Anda. Jika Anda berada di luar area kantor (geofence), lokasi diperlukan sebagai bukti persetujuan admin.`;
     }
 
     await sendWhatsAppMessage(remoteJid, msg);
 }
 
 async function handleCheckOut(user: any, remoteJid: string, replies: any, cmds: any, varData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const nowTime = format(new Date(), 'HH:mm:ss');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm:ss');
     
     
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
@@ -619,11 +626,11 @@ async function handleCheckOut(user: any, remoteJid: string, replies: any, cmds: 
 
     if (features.require_location_check_out !== false) {
         if (remoteJid.endsWith('@g.us')) {
-            msg += `\nMohon cek pesan pribadi (Japri) dari sistem untuk mengirimkan *Live Location*.`;
+            msg += `\nSistem memerlukan verifikasi lokasi. Mohon cek pesan pribadi (Japri) dari sistem untuk mengirimkan *Live Location*.`;
             await sendWhatsAppMessage(remoteJid, msg);
-            await sendWhatsAppMessage(user.id + '@s.whatsapp.net', `Halo ${user.name}, silakan kirimkan *Live Location* Anda untuk menyelesaikan absensi PULANG.`);
+            await sendWhatsAppMessage(user.id + '@s.whatsapp.net', `Halo ${user.name}, silakan kirimkan *Live Location* Anda untuk menyelesaikan absensi PULANG. Lokasi diperlukan untuk verifikasi area kantor.`);
         } else {
-            msg += `\nMohon kirimkan *Live Location* Anda di sini.`;
+            msg += `\nSistem memerlukan verifikasi lokasi. Mohon kirimkan *Live Location* Anda di sini untuk verifikasi area kantor.`;
             await sendWhatsAppMessage(remoteJid, msg);
         }
     } else {
@@ -639,7 +646,7 @@ async function alertAdmins(text: string) {
 }
 
 async function handleLocation(user: any, remoteJid: string, replies: any, varData: any, locationData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length > 0 && locationData) {
@@ -705,7 +712,7 @@ async function handleLocation(user: any, remoteJid: string, replies: any, varDat
 }
 
 async function handleLeave(user: any, remoteJid: string, replies: any, varData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length > 0) {
@@ -718,7 +725,7 @@ async function handleLeave(user: any, remoteJid: string, replies: any, varData: 
     }
 
     const id = crypto.randomUUID();
-    const nowTime = format(new Date(), 'HH:mm:ss');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm:ss');
     await db.insert(attendances).values({
         id,
         user_id: user.id,
@@ -743,7 +750,7 @@ async function handleLeave(user: any, remoteJid: string, replies: any, varData: 
 }
 
 async function handleCancelLeave(user: any, remoteJid: string, replies: any, varData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length === 0 || existing[0].status !== 'holiday') {
@@ -793,13 +800,19 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
     let monthlyPerfectBonus = 0;
     let unusedHolidayBonus = 0;
     
-    const isEligibleForPerfectBonus = !hasLate && !hasHolidayExceeded && monthlyAttendances.length > 0;
+    const isEligibleForPerfectBonus = (lateDays <= user.late_quota) && !hasHolidayExceeded && monthlyAttendances.length > 0;
     if (isEligibleForPerfectBonus) monthlyPerfectBonus = appSettings?.bonuses?.perfect_attendance || 0;
     if (user.holiday_quota > 0) unusedHolidayBonus = user.holiday_quota * 100000;
     
     totalBonus += monthlyPerfectBonus + unusedHolidayBonus;
 
     const statsBreakdown = `
+*Sisa Kuota Absensi:*
+- Libur: ${user.holiday_quota} kali
+- Telat: ${user.late_quota} kali
+- Telat Darurat: ${user.emergency_late_quota} kali
+- Pulang Cepat: ${user.early_leave_quota} kali
+
 *Total Lembur (Bulan Ini)*: + Rp ${totalOvertime.toLocaleString()}
 *Total Bonus (Bulan Ini)*: + Rp ${totalBonus.toLocaleString()}
 - Harian (Tepat Waktu): + Rp ${(totalBonus - monthlyPerfectBonus - unusedHolidayBonus).toLocaleString()}
@@ -807,8 +820,7 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
 - Kuota Libur Sisa: + Rp ${unusedHolidayBonus.toLocaleString()}
 
 *Progress Bonus Disiplin*: ${isEligibleForPerfectBonus ? 'Eligible' : 'Not Eligible'}
-- Syarat: Tidak ada keterlambatan (${lateDays === 0 ? 'Terpenuhi' : 'Gagal'})
-- Syarat: Tidak potong libur melebihi batas (${!hasHolidayExceeded ? 'Terpenuhi' : 'Gagal'})
+- Syarat: Telat tidak lebih dari kuota (${lateDays <= user.late_quota ? 'Terpenuhi' : 'Gagal'})
 
 *Total Denda (Bulan Ini)*: - Rp ${totalPenalty.toLocaleString()}
 
@@ -843,7 +855,7 @@ waBotRouter.post('/logout', async (req, res) => {
 
 
 async function handleTelat(user: any, remoteJid: string, replies: any, varData: any, rawCommand: string) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length > 0) {
@@ -859,7 +871,7 @@ async function handleTelat(user: any, remoteJid: string, replies: any, varData: 
 
     const reason = reasonMatch[1].trim();
     const id = crypto.randomUUID();
-    const nowTime = format(new Date(), 'HH:mm:ss');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm:ss');
 
     await db.insert(attendances).values({
         id,
@@ -892,7 +904,7 @@ async function handleImage(user: any, remoteJid: string, replies: any, varData: 
     }
     expectedMedia.delete(user.id); // clear state
 
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length > 0 && (existing[0].approval_status === 'pending' || existing[0].status === 'late' || existing[0].status === 'holiday')) {

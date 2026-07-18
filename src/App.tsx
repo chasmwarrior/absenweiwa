@@ -29,9 +29,10 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/change-number" element={<ChangeNumber />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/stats/:id" element={<EmployeeStats />} />
             
             <Route element={<PrivateRoute />}>
-              <Route path="/stats/:id" element={<EmployeeStats />} />
+
               <Route path="/" element={<Layout />}>
                 <Route index element={<Dashboard />} />
                 <Route path="pending" element={<PendingActions />} />

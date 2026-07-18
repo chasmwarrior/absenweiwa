@@ -15,6 +15,7 @@ export const users = sqliteTable('users', {
   job_position: text('job_position'), // e.g. IT, HR, Marketing
   work_location_id: text('work_location_id').references(() => locations.id),
   password: text('password'), // bcrypt hashed for admin
+  pin: text('pin'), // PIN for employee dashboard access
   holiday_quota: integer('holiday_quota').notNull().default(4),
   late_quota: integer('late_quota').notNull().default(2),
   emergency_late_quota: integer('emergency_late_quota').notNull().default(2),
