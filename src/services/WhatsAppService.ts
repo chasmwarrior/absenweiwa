@@ -15,6 +15,7 @@ import { formatInTimeZone } from 'date-fns-tz';
 // from 'date-fns';
 
 const lastMessageTimes = new Map<string, number>();
+const lastWarningTimes = new Map<string, number>();
 const userLastGroup = new Map<string, string>();
 const SPAM_THRESHOLD_MS = 2500;
 const expectedMedia = new Map<string, boolean>();
@@ -274,9 +275,13 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     const lastTime = lastMessageTimes.get(remoteJid) || 0;
     if (now - lastTime < SPAM_THRESHOLD_MS) {
         console.log(`Spam detected from ${remoteJid}, warning sent.`);
-        // We still use sendWhatsAppMessage but we shouldn't update the lastMessageTimes here
-        // so they can only successfully send when they wait out the threshold.
-        await sendWhatsAppMessage(remoteJid, 'Peringatan: Anda mengirim perintah terlalu cepat (spam). Jika dilakukan berulang kali, bonus Anda akan dipotong!');
+
+        // Debounce warning message so we don't spam them back
+        const timeSinceWarning = now - (lastWarningTimes.get(remoteJid) || 0);
+        if (timeSinceWarning > 10000) { // Only send warning once every 10 seconds
+            await sendWhatsAppMessage(remoteJid, 'Peringatan: Anda mengirim perintah terlalu cepat (spam). Jika dilakukan berulang kali, bonus Anda akan dipotong!');
+            lastWarningTimes.set(remoteJid, now);
+        }
         return;
     }
     lastMessageTimes.set(remoteJid, now);
@@ -777,8 +782,6 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
     
     const dailyBonus = appSettings?.bonuses?.on_time || 0;
 
-    let hasLate = false;
-    let hasHolidayExceeded = false;
     let lateDays = 0;
 
     monthlyAttendances.forEach(att => {
@@ -789,18 +792,17 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
          totalBonus += dailyBonus;
       }
       if (att.status === 'late' || (att.penalty_amount && att.penalty_amount > 0)) {
-         hasLate = true;
          lateDays++;
-      }
-      if (att.status === 'holiday') {
-         hasHolidayExceeded = true;
       }
     });
 
     let monthlyPerfectBonus = 0;
     let unusedHolidayBonus = 0;
     
-    const isEligibleForPerfectBonus = (lateDays <= user.late_quota) && !hasHolidayExceeded && monthlyAttendances.length > 0;
+    // Eligible if no quota is exceeded (i.e. remaining quota is >= 0)
+    const isQuotaExceeded = user.late_quota < 0 || user.holiday_quota < 0 || user.emergency_late_quota < 0 || user.early_leave_quota < 0;
+    const isEligibleForPerfectBonus = !isQuotaExceeded && monthlyAttendances.length > 0;
+
     if (isEligibleForPerfectBonus) monthlyPerfectBonus = appSettings?.bonuses?.perfect_attendance || 0;
     if (user.holiday_quota > 0) unusedHolidayBonus = user.holiday_quota * 100000;
     
@@ -820,7 +822,7 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
 - Kuota Libur Sisa: + Rp ${unusedHolidayBonus.toLocaleString()}
 
 *Progress Bonus Disiplin*: ${isEligibleForPerfectBonus ? 'Eligible' : 'Not Eligible'}
-- Syarat: Telat tidak lebih dari kuota (${lateDays <= user.late_quota ? 'Terpenuhi' : 'Gagal'})
+- Syarat: Tidak melampaui batas semua kuota bulanan (${!isQuotaExceeded ? 'Terpenuhi' : 'Gagal'})
 
 *Total Denda (Bulan Ini)*: - Rp ${totalPenalty.toLocaleString()}
 

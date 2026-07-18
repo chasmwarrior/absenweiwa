@@ -493,19 +493,19 @@ apiRouter.put('/attendances/:id/approval', async (req, res) => {
             const updates: any = {};
             if (finalStatus === 'holiday' || finalStatus === 'telat (potong libur)' || (attRecord[0].notes && attRecord[0].notes.toLowerCase().includes('potong libur'))) {
                 statusName = 'Libur/Off';
-                if (user.holiday_quota > 0) updates.holiday_quota = user.holiday_quota - 1;
+                updates.holiday_quota = user.holiday_quota - 1;
                 deductMsg = `\nSisa Kuota Libur: ${updates.holiday_quota !== undefined ? updates.holiday_quota : user.holiday_quota}`;
             } else if (finalStatus === 'late' && attRecord[0].notes && attRecord[0].notes.toLowerCase().includes('darurat')) {
                 statusName = 'Telat Darurat';
-                if (user.emergency_late_quota > 0) updates.emergency_late_quota = user.emergency_late_quota - 1;
+                updates.emergency_late_quota = user.emergency_late_quota - 1;
                 deductMsg = `\nSisa Kuota Telat Darurat: ${updates.emergency_late_quota !== undefined ? updates.emergency_late_quota : user.emergency_late_quota}`;
             } else if (finalStatus === 'late') {
                 statusName = 'Telat';
-                if (user.late_quota > 0) updates.late_quota = user.late_quota - 1;
+                updates.late_quota = user.late_quota - 1;
                 deductMsg = `\nSisa Kuota Telat: ${updates.late_quota !== undefined ? updates.late_quota : user.late_quota}`;
             } else if (finalStatus === 'early_leave') {
                 statusName = 'Pulang Cepat';
-                if (user.early_leave_quota > 0) updates.early_leave_quota = user.early_leave_quota - 1;
+                updates.early_leave_quota = user.early_leave_quota - 1;
                 deductMsg = `\nSisa Kuota Pulang Cepat: ${updates.early_leave_quota !== undefined ? updates.early_leave_quota : user.early_leave_quota}`;
             } else if (finalStatus === 'on_time') {
                 statusName = 'Masuk/In (Luar Geofence)';
@@ -516,7 +516,7 @@ apiRouter.put('/attendances/:id/approval', async (req, res) => {
             if (Object.keys(updates).length > 0) {
                 await db.update(users).set(updates).where(eq(users.id, user.id));
                 // fetch updated user memory
-                userSyncService.syncUsers();
+                userSyncService.syncAll();
             }
         }
 
