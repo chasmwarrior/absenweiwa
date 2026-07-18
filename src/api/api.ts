@@ -1,6 +1,8 @@
 import fs from "fs";
 import crypto from "crypto";
-import { format } from "date-fns";
+import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+// from "date-fns";
 import axios from "axios";
 import { Router } from 'express';
 
@@ -341,11 +343,47 @@ apiRouter.get('/attendances', async (req, res) => {
   }
 });
 
+
+// POST setup PIN
+apiRouter.post('/stats-page/:id/setup-pin', async (req, res) => {
+  try {
+    const { pin } = req.body;
+    if (!pin || pin.length < 4) return res.status(400).json({ error: 'PIN minimal 4 karakter' });
+    await db.update(users).set({ pin }).where(eq(users.id, req.params.id));
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST verify PIN
+apiRouter.post('/stats-page/:id/verify-pin', async (req, res) => {
+  try {
+    const { pin } = req.body;
+    const userRes = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
+    if (userRes.length === 0) return res.status(404).json({ error: 'Not found' });
+
+    // allow bypass if PIN is not set yet so frontend can prompt setup
+    if (!userRes[0].pin) return res.json({ success: true, needsSetup: true });
+
+    if (userRes[0].pin === pin) {
+        res.json({ success: true });
+    } else {
+        res.status(401).json({ error: 'PIN salah' });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET stats-page data
 apiRouter.get('/stats-page/:id', async (req, res) => {
   try {
-    const { month } = req.query; // format yyyy-MM
+    const { month, pin } = req.query; // format yyyy-MM
     const userRes = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
+    if (userRes.length > 0 && userRes[0].pin && userRes[0].pin !== pin) {
+        return res.status(401).json({ error: 'Unauthorized PIN' });
+    }
     
     if (userRes.length === 0) {
       return res.status(404).json({ error: 'Not found' });
@@ -430,21 +468,62 @@ let statusName = 'Absensi';
 // PUT update attendance approval
 apiRouter.put('/attendances/:id/approval', async (req, res) => {
   try {
-    const { status } = req.body;
-    await db.update(attendances).set({ approval_status: status, notes: 'Diproses melalui Pending Actions' }).where(eq(attendances.id, req.params.id));
+    const { status, notes, penalty_amount, bonus_amount, attendance_status } = req.body;
+    const updateData: any = {
+        approval_status: status,
+        notes: notes || (status === 'approved' ? 'Disetujui Admin' : 'Ditolak Admin')
+    };
+    if (penalty_amount !== undefined) updateData.penalty_amount = penalty_amount;
+    if (bonus_amount !== undefined) updateData.bonus_amount = bonus_amount;
+    if (attendance_status !== undefined) updateData.status = attendance_status;
+
+    await db.update(attendances).set(updateData).where(eq(attendances.id, req.params.id));
 
     const attRecord = await db.select().from(attendances).where(eq(attendances.id, req.params.id)).limit(1);
     if (attRecord.length > 0) {
-      const user = userSyncService.getUser(attRecord[0].user_id);
-      if (user) {
-let statusName = 'Absensi';
-        if (attRecord[0].status === 'holiday') statusName = 'Libur/Off';
-        else if (attRecord[0].status === 'late') statusName = 'Telat';
-        else if (attRecord[0].status === 'on_time') statusName = 'Masuk/In (Luar Geofence)';
-        else if (attRecord[0].status === 'overtime') statusName = 'Pulang/Out (Luar Geofence)';
+      const dbUserResult = await db.select().from(users).where(eq(users.id, attRecord[0].user_id)).limit(1);
+      if (dbUserResult.length > 0) {
+        let user = dbUserResult[0];
+        let statusName = 'Absensi';
+        const finalStatus = attRecord[0].status;
+        let deductMsg = '';
         
-        let msg = `Permohonan ${statusName} Anda pada tanggal ${attRecord[0].date} telah *${status === 'approved' ? 'DISETUJUI' : 'DITOLAK'}* oleh Admin.`;
-        msg += `\nSisa kuota telat Anda: ${user.late_quota} hari.`;
+        // Process quota deductions if approved
+        if (status === 'approved') {
+            const updates: any = {};
+            if (finalStatus === 'holiday' || finalStatus === 'telat (potong libur)' || (attRecord[0].notes && attRecord[0].notes.toLowerCase().includes('potong libur'))) {
+                statusName = 'Libur/Off';
+                updates.holiday_quota = user.holiday_quota - 1;
+                deductMsg = `\nSisa Kuota Libur: ${updates.holiday_quota !== undefined ? updates.holiday_quota : user.holiday_quota}`;
+            } else if (finalStatus === 'late' && attRecord[0].notes && attRecord[0].notes.toLowerCase().includes('darurat')) {
+                statusName = 'Telat Darurat';
+                updates.emergency_late_quota = user.emergency_late_quota - 1;
+                deductMsg = `\nSisa Kuota Telat Darurat: ${updates.emergency_late_quota !== undefined ? updates.emergency_late_quota : user.emergency_late_quota}`;
+            } else if (finalStatus === 'late') {
+                statusName = 'Telat';
+                updates.late_quota = user.late_quota - 1;
+                deductMsg = `\nSisa Kuota Telat: ${updates.late_quota !== undefined ? updates.late_quota : user.late_quota}`;
+            } else if (finalStatus === 'early_leave') {
+                statusName = 'Pulang Cepat';
+                updates.early_leave_quota = user.early_leave_quota - 1;
+                deductMsg = `\nSisa Kuota Pulang Cepat: ${updates.early_leave_quota !== undefined ? updates.early_leave_quota : user.early_leave_quota}`;
+            } else if (finalStatus === 'on_time') {
+                statusName = 'Masuk/In (Luar Geofence)';
+            } else if (finalStatus === 'overtime') {
+                statusName = 'Pulang/Out (Luar Geofence)';
+            }
+
+            if (Object.keys(updates).length > 0) {
+                await db.update(users).set(updates).where(eq(users.id, user.id));
+                // fetch updated user memory
+                userSyncService.syncAll();
+            }
+        }
+
+        let msg = `Permohonan ${statusName} Anda pada tanggal ${attRecord[0].date} telah *${status === 'approved' ? 'DISETUJUI' : 'DITOLAK'}* oleh Admin.\nCatatan: ${updateData.notes}`;
+        if (status === 'approved' && deductMsg) {
+            msg += deductMsg;
+        }
         await sendWhatsAppMessage(user.id + '@s.whatsapp.net', msg);
       }
     }
@@ -485,6 +564,16 @@ apiRouter.post('/data/clear-logs', async (req, res) => {
     }
 
     res.json({ success: true, deleted: toDelete.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST reset attendance data only
+apiRouter.post('/data/reset-attendances', async (req, res) => {
+  try {
+    await db.delete(attendances);
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -533,7 +622,7 @@ apiRouter.post('/users/:id/pulang-cepat', async (req, res) => {
     const { sendWhatsAppMessage } = await import('../services/WhatsAppService.js');
     const msg = `Halo ${user[0].name}, admin telah mencatat Anda untuk Pulang Cepat hari ini. Mohon kirimkan bukti/alasan agar dapat disetujui oleh admin.`;
     
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, userId), eq(attendances.date, today))).limit(1);
     
     if (existing.length > 0) {

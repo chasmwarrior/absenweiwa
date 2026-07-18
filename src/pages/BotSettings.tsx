@@ -34,7 +34,7 @@ export default function BotSettings() {
   const handleSave = async () => {
     try {
       await axios.post('/api/bot-templates', templates);
-      toast.success('Pengaturan bot berhasil disimpan!');
+      toast.success('Pengaturan sistem berhasil disimpan!');
     } catch (err) {
       toast.error('Gagal menyimpan pengaturan bot');
     }
@@ -73,7 +73,7 @@ export default function BotSettings() {
               </span>
             </div>
           </div>
-          
+
           {status === 'connecting' && qrCode && (
             <div className="flex flex-col items-center border border-slate-700 p-2 rounded-lg bg-white">
               <img src={qrCode} alt="WhatsApp QR Code" className="w-48 h-48" />
@@ -84,62 +84,14 @@ export default function BotSettings() {
       </div>
 
       <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col">
+      <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden flex flex-col mt-6">
         <div className="px-4 py-3 flex justify-between items-center border-b border-slate-700 bg-slate-900/50">
           <div className="flex items-center">
-            <MessageSquare className="w-4 h-4 text-emerald-400 mr-2" />
-            <h2 className="text-xs font-bold text-slate-400 uppercase">Pengaturan Format Pesan & Perintah</h2>
-          </div>
-          <button
-            onClick={handleSave}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-bold transition-colors"
-          >
-            Simpan Perubahan
-          </button>
-        </div>
-
-        <div className="p-4 space-y-6">
-          <div className="bg-indigo-900/30 border border-indigo-500/30 p-3 rounded-lg flex items-start">
-            <Info className="w-5 h-5 text-indigo-400 mr-3 shrink-0 mt-0.5" />
-            <div className="text-sm text-indigo-200">
-              
-          {/* Custom Commands Link */}
-          <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4 flex justify-between items-center">
-            <div>
-              <h3 className="text-sm font-bold text-indigo-400">Custom Commands & Variabel Pesan</h3>
-              <p className="text-xs text-indigo-300 mt-1">Kelola perintah tambahan bot dan lihat panduan variabel pesan lengkap.</p>
-            </div>
-            <a href="/custom-commands" className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors">
-              Buka Pengaturan
-            </a>
-          </div>
-
-            </div>
-          </div>
-
-          {/* Toggles / Features Section */}
-          <div>
-            <h3 className="text-[11px] font-bold text-slate-400 uppercase mb-3 flex items-center">
               <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span> Fitur Otomatis
-            </h3>
+            </div>
             <div className="space-y-3">
-              <label className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={templates.features?.require_location_check_in ?? true}
-                  onChange={(e) => setTemplates({ ...templates, features: { ...templates.features, require_location_check_in: e.target.checked } })}
-                  className="w-4 h-4 text-emerald-500 rounded bg-slate-900 border-slate-700"
-                />
-                <span className="text-sm font-bold text-slate-300">Wajib Kirim Lokasi saat Check-In</span>
-              </label>
-              <label className="flex items-center space-x-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={templates.features?.require_location_check_out ?? true}
-                  onChange={(e) => setTemplates({ ...templates, features: { ...templates.features, require_location_check_out: e.target.checked } })}
-                  className="w-4 h-4 text-emerald-500 rounded bg-slate-900 border-slate-700"
-                />
-                <span className="text-sm font-bold text-slate-300">Wajib Kirim Lokasi saat Check-Out</span>
-              </label>
+
+
               <div className="pt-2">
                 <label className="block text-sm font-bold text-slate-300 mb-1">ID Grup yang Diizinkan (Opsional)</label>
                 <input
@@ -149,7 +101,7 @@ export default function BotSettings() {
                   onChange={(e) => setTemplates({ ...templates, features: { ...templates.features, allowed_groups: e.target.value } })}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded text-sm text-slate-200 focus:border-indigo-500 outline-none transition-colors"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Biarkan kosong jika bot boleh merespon di semua grup.</p>
+                <p className="text-[10px] text-slate-500 mt-1">Biarkan kosong jika sistem boleh merespon di semua grup.</p>
               </div>
               <label className="flex items-center space-x-3 cursor-pointer">
                 <input
@@ -163,19 +115,19 @@ export default function BotSettings() {
             </div>
           </div>
 
-          
+
           {/* Commands Section */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-            <button 
-              onClick={() => setIsCommandsOpen(!isCommandsOpen)} 
+            <button
+              onClick={() => setIsCommandsOpen(!isCommandsOpen)}
               className="w-full px-5 py-4 flex justify-between items-center bg-slate-800 hover:bg-slate-700/50 transition-colors"
             >
-              <h3 className="text-[11px] font-bold text-slate-400 uppercase flex items-center">
+              <div className="text-[11px] font-bold text-slate-400 uppercase flex items-center">
                 <span className="w-2 h-2 bg-indigo-500 rounded-full mr-2"></span> Perintah (Commands)
-              </h3>
+              </div>
               {isCommandsOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
             </button>
-            
+
             {isCommandsOpen && (
               <div className="p-5 border-t border-slate-700 bg-slate-800/50">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -246,17 +198,17 @@ export default function BotSettings() {
               </div>
             )}
           </div>
-          
-          
+
+
           {/* Replies Section */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-            <button 
-              onClick={() => setIsRepliesOpen(!isRepliesOpen)} 
+            <button
+              onClick={() => setIsRepliesOpen(!isRepliesOpen)}
               className="w-full px-5 py-4 flex justify-between items-center bg-slate-800 hover:bg-slate-700/50 transition-colors"
             >
-              <h3 className="text-[11px] font-bold text-slate-400 uppercase flex items-center">
-                <span className="w-2 h-2 bg-rose-500 rounded-full mr-2"></span> Balasan Bot (Replies)
-              </h3>
+              <div className="text-[11px] font-bold text-slate-400 uppercase flex items-center">
+                <span className="w-2 h-2 bg-rose-500 rounded-full mr-2"></span> Balasan Sistem (Replies)
+              </div>
               {isRepliesOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
             </button>
             
@@ -358,7 +310,7 @@ export default function BotSettings() {
             )}
           </div>
 
-          
+
         </div>
       </div>
     </div>

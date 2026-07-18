@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, subMonths, addMonths } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { Calendar, ChevronLeft, ChevronRight, Clock, MapPin, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Clock, MapPin, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
 
 export default function EmployeeStats() {
   const { id } = useParams();
@@ -11,14 +11,59 @@ export default function EmployeeStats() {
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
 
+  const [pin, setPin] = useState('');
+  const [inputPin, setInputPin] = useState('');
+  const [isPinVerified, setIsPinVerified] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [pinError, setPinError] = useState('');
+
   useEffect(() => {
-    fetchData();
-  }, [id, currentDate]);
+    checkPinStatus();
+  }, [id]);
+
+  useEffect(() => {
+    if (isPinVerified) {
+        fetchData();
+    }
+  }, [currentDate, isPinVerified]);
+
+  const checkPinStatus = async () => {
+      try {
+          // Verify with empty pin to check if setup is needed
+          const res = await axios.post(`/api/stats-page/${id}/verify-pin`, { pin: '' });
+          if (res.data.needsSetup) {
+              setNeedsSetup(true);
+              setLoading(false);
+          }
+      } catch (err) {
+          setLoading(false); // Likely means pin is set and requires actual verification
+      }
+  }
+
+  const handlePinSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setPinError('');
+      setLoading(true);
+      try {
+          if (needsSetup) {
+              await axios.post(`/api/stats-page/${id}/setup-pin`, { pin: inputPin });
+              setNeedsSetup(false);
+          } else {
+              await axios.post(`/api/stats-page/${id}/verify-pin`, { pin: inputPin });
+          }
+          setPin(inputPin);
+          setIsPinVerified(true);
+      } catch (err: any) {
+          setPinError(err.response?.data?.error || 'PIN Salah');
+      } finally {
+          setLoading(false);
+      }
+  }
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`/api/stats-page/${id}?month=${format(currentDate, 'yyyy-MM')}`);
+      const res = await axios.get(`/api/stats-page/${id}?month=${format(currentDate, 'yyyy-MM')}&pin=${pin}`);
       setData(res.data);
     } catch (err) {
       console.error(err);

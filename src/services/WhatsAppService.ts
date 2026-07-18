@@ -11,10 +11,14 @@ import { eq, desc, and } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
+// from 'date-fns';
 
 const lastMessageTimes = new Map<string, number>();
+const lastWarningTimes = new Map<string, number>();
 const userLastGroup = new Map<string, string>();
 const SPAM_THRESHOLD_MS = 2500;
+const expectedMedia = new Map<string, boolean>();
 
 export const waBotRouter = Router();
 
@@ -161,11 +165,18 @@ export async function initWABot() {
             if (m.key.participant?.includes('@lid') && (m.key as any).participantAlt && (m.key as any).participantAlt.includes('@s.whatsapp.net')) {
                 m.key.participant = (m.key as any).participantAlt;
             }
+
+            if (m.message?.extendedTextMessage?.contextInfo?.isForwarded ||
+                m.message?.imageMessage?.contextInfo?.isForwarded ||
+                m.message?.documentMessage?.contextInfo?.isForwarded) {
+                console.log('Forwarded message detected, ignoring.');
+                return;
+            }
             const textMessage = m.message.conversation || m.message.extendedTextMessage?.text || '';
             const locationMessage = m.message.locationMessage;
 
             // Handle logic here, similar to webhook.ts but native
-            const imageMessage = m.message.imageMessage;
+            const imageMessage = m.message.imageMessage || m.message.documentMessage;
 
             console.log("========== INCOMING MESSAGE TRACE ==========");
             try {
@@ -187,16 +198,34 @@ export async function initWABot() {
     }
 }
 
-export async function sendWhatsAppMessage(jid: string, text: string) {
-    if (sock && connectionStatus === 'open') {
-        try {
-            await sock.sendMessage(jid, { text });
-        } catch (err) {
-            console.error("Failed to send WA message:", err);
+
+const messageQueue: { jid: string, text: string }[] = [];
+let isProcessingQueue = false;
+
+async function processMessageQueue() {
+    if (isProcessingQueue) return;
+    isProcessingQueue = true;
+    while (messageQueue.length > 0) {
+        const msg = messageQueue.shift();
+        if (msg && sock && connectionStatus === 'open') {
+            try {
+                await sock.sendMessage(msg.jid, { text: msg.text });
+            } catch (err) {
+                console.error("Failed to send WA message:", err);
+            }
+            // Delay 1-3 seconds randomly to avoid WhatsApp unofficial API spam detection
+            const delay = Math.floor(Math.random() * 2000) + 1000;
+            await new Promise(r => setTimeout(r, delay));
+        } else if (!sock || connectionStatus !== 'open') {
+            console.warn("Cannot send message, WA is not connected. Message dropped from queue.");
         }
-    } else {
-        console.warn("Cannot send message, WA Bot is not connected.");
     }
+    isProcessingQueue = false;
+}
+
+export async function sendWhatsAppMessage(jid: string, text: string) {
+    messageQueue.push({ jid, text });
+    processMessageQueue();
 }
 
 // Logic implementation
@@ -245,7 +274,14 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     const now = Date.now();
     const lastTime = lastMessageTimes.get(remoteJid) || 0;
     if (now - lastTime < SPAM_THRESHOLD_MS) {
-        console.log(`Spam detected from ${remoteJid}, ignoring.`);
+        console.log(`Spam detected from ${remoteJid}, warning sent.`);
+
+        // Debounce warning message so we don't spam them back
+        const timeSinceWarning = now - (lastWarningTimes.get(remoteJid) || 0);
+        if (timeSinceWarning > 10000) { // Only send warning once every 10 seconds
+            await sendWhatsAppMessage(remoteJid, 'Peringatan: Anda mengirim perintah terlalu cepat (spam). Jika dilakukan berulang kali, bonus Anda akan dipotong!');
+            lastWarningTimes.set(remoteJid, now);
+        }
         return;
     }
     lastMessageTimes.set(remoteJid, now);
@@ -312,7 +348,7 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
     }
 
 
-    const nowTime = format(new Date(), 'HH:mm');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm');
     const varData: any = {
        name: user.name,
        time: nowTime,
@@ -346,44 +382,47 @@ async function handleIncomingMessage(remoteJid: string, textMessage: string, loc
 
 const sendGroupNotice = async (cmdName) => {
         if (isGroup) {
-            await sendWhatsAppMessage(remoteJid, `Halo @${senderNumber}, perintah ${cmdName} diterima. Silakan cek pesan personal/DM dari bot untuk melanjutkan.`);
+            await sendWhatsAppMessage(remoteJid, `Halo @${senderNumber}, perintah ${cmdName} diterima. Silakan cek pesan personal/DM dari sistem untuk melanjutkan.`);
         }
     };
 
-    if (command === (cmds.check_in || '').replace(/^!/, '')) {
+    const cmdCheckIn = (cmds.check_in || '').replace(/^!/, '');
+    const cmdCheckOut = (cmds.check_out || '').replace(/^!/, '');
+    const cmdLeave = (cmds.leave || 'libur').replace(/^!/, '');
+    const cmdCancelLeave = (cmds.cancel_leave || 'batal_izin').replace(/^!/, '');
+    const cmdInfo = (cmds.info || '').replace(/^!/, '');
+    const cmdHelp = (cmds.help || 'help').replace(/^!/, '');
+
+    const checkInAliases = ['msk', 'masuk', 'in', 'hadir', cmdCheckIn];
+    const checkOutAliases = ['out', 'pulang', 'keluar', 'plng', cmdCheckOut];
+    const leaveAliases = ['off', 'libur', 'cuti', 'lbr', cmdLeave];
+
+    if (checkInAliases.includes(command)) {
         await sendGroupNotice('Masuk/In');
         await handleCheckIn(user, replyJid, replies, cmds, varData);
-    } else if (command === (cmds.check_out || '').replace(/^!/, '')) {
+    } else if (checkOutAliases.includes(command)) {
         await sendGroupNotice('Pulang/Out');
         await handleCheckOut(user, replyJid, replies, cmds, varData);
-    } else if (command === ((cmds.leave || 'libur').replace(/^!/, ''))) {
+    } else if (leaveAliases.includes(command)) {
         await sendGroupNotice('Libur/Off');
         await handleLeave(user, replyJid, replies, varData);
     } else if (command.startsWith('telat')) {
         await sendGroupNotice('Telat');
         await handleTelat(user, replyJid, replies, varData, rawCommand);
-    } else if (command === ((cmds.cancel_leave || 'batal_izin').replace(/^!/, ''))) {
+    } else if (command === cmdCancelLeave) {
         await sendGroupNotice('Batal Libur');
         await handleCancelLeave(user, replyJid, replies, varData);
     } else if (command.startsWith('gantinomer')) {
         await sendGroupNotice('Ganti Nomor');
         await handleChangeNumberRequest(user, replyJid, textMessage, varData, replies);
-    } else if (command === (cmds.info || '').replace(/^!/, '') || command === 'info' || command === 'statistik') {
+    } else if (command === cmdInfo || command === 'info' || command === 'statistik') {
         await sendGroupNotice('Info');
         await handleInfo(user, replyJid, replies, varData);
-    } else if (command === (cmds.help || 'help').replace(/^!/, '') || command === 'help') {
+    } else if (command === cmdHelp || command === 'help') {
         await sendGroupNotice('Help');
         await handleHelp(user, replyJid, replies, cmds, varData);
     } else {
-        if (['msk', 'masuk', 'in', 'hadir'].includes(command)) {
-            await sendWhatsAppMessage(remoteJid, `Perintah tidak dikenal. Untuk absensi masuk, gunakan perintah: ${cmds.check_in || '!hadir'}`);
-        } else if (['out', 'pulang', 'keluar'].includes(command)) {
-            await sendWhatsAppMessage(remoteJid, `Perintah tidak dikenal. Untuk absensi pulang, gunakan perintah: ${cmds.check_out || '!pulang'}`);
-        } else if (['off', 'libur', 'cuti'].includes(command)) {
-            await sendWhatsAppMessage(remoteJid, `Perintah tidak dikenal. Untuk absensi libur, gunakan perintah: ${cmds.leave || '!libur'}`);
-        } else {
-            await sendWhatsAppMessage(remoteJid, replaceVars(replies.unknown_command, varData));
-        }
+        await sendWhatsAppMessage(remoteJid, replaceVars(replies.unknown_command, varData));
     }
 }
 
@@ -396,8 +435,8 @@ const replaceVars = (template: string, data: any) => {
 };
 
 async function handleCheckIn(user: any, remoteJid: string, replies: any, cmds: any, varData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const nowTime = format(new Date(), 'HH:mm:ss');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm:ss');
     
     
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
@@ -430,9 +469,12 @@ async function handleCheckIn(user: any, remoteJid: string, replies: any, cmds: a
                  break;
              }
         }
-        if (nowTime >= config.late_cut_holiday + ':00') {
-            status = 'holiday';
-            penalty = 0;
+        if (nowTime > '14:00:00') {
+            status = 'telat (potong libur)';
+            approval_status = 'pending';
+        } else if (nowTime >= config.late_cut_holiday + ':00') {
+            // Fix 14:00 Holiday Bug - removing automatic 'holiday' status for standard late cutoff
+            // It just stays 'late' as expected but requires admin approval which we already set above.
         }
 
         const t1 = new Date(`2000-01-01T${workStart}`);
@@ -470,25 +512,44 @@ async function handleCheckIn(user: any, remoteJid: string, replies: any, cmds: a
         msg = replaceVars(replies.check_in_success || 'Halo {name}, absensi MASUK berhasil pada pukul {time}.', varData);
     }
 
+    // Location prompt is handled by features.require_location_check_in setting.
+    // However user prefers to only ask if necessary or out of geofence.
+    // Since we don't know geofence until they send location, we just ask for it globally if required,
+    // but rephrase to explain WHY.
     if (features.require_location_check_in !== false) {
-        msg += `\nMohon kirimkan *Live Location* Anda.`;
+        expectedMedia.set(user.id, true); // We expect a location/media if they are outside
+        msg += `\nSistem memerlukan verifikasi lokasi. Mohon kirimkan *Live Location* Anda. Jika Anda berada di luar area kantor (geofence), lokasi diperlukan sebagai bukti persetujuan admin.`;
     }
 
     await sendWhatsAppMessage(remoteJid, msg);
 }
 
 async function handleCheckOut(user: any, remoteJid: string, replies: any, cmds: any, varData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    const nowTime = format(new Date(), 'HH:mm:ss');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm:ss');
     
     
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
-    if (existing.length === 0) {
-        await sendWhatsAppMessage(remoteJid, replaceVars(replies.not_checked_in || 'Anda belum absen masuk.', varData));
-        return;
-    }
+    let attendance = existing.length > 0 ? existing[0] : null;
     
-    const attendance = existing[0];
+    if (!attendance) {
+        // User forgot to check-in, but is checking out.
+        // We'll create a dummy check-in record marked as 'late' and pending admin review.
+        const id = crypto.randomUUID();
+        await db.insert(attendances).values({
+            id,
+            user_id: user.id,
+            date: today,
+            check_in_time: null, // no check in time
+            status: 'late',
+            penalty_amount: 0,
+            bonus_amount: 0,
+            approval_status: 'pending',
+            notes: 'Lupa Absen Masuk'
+        });
+        const refetch = await db.select().from(attendances).where(eq(attendances.id, id)).limit(1);
+        attendance = refetch[0];
+    }
     if (attendance.status === 'holiday') {
         await sendWhatsAppMessage(remoteJid, replaceVars(replies.already_on_leave || 'Anda sedang libur hari ini.', varData));
         return;
@@ -570,11 +631,11 @@ async function handleCheckOut(user: any, remoteJid: string, replies: any, cmds: 
 
     if (features.require_location_check_out !== false) {
         if (remoteJid.endsWith('@g.us')) {
-            msg += `\nMohon cek pesan pribadi (Japri) dari bot untuk mengirimkan *Live Location*.`;
+            msg += `\nSistem memerlukan verifikasi lokasi. Mohon cek pesan pribadi (Japri) dari sistem untuk mengirimkan *Live Location*.`;
             await sendWhatsAppMessage(remoteJid, msg);
-            await sendWhatsAppMessage(user.id + '@s.whatsapp.net', `Halo ${user.name}, silakan kirimkan *Live Location* Anda untuk menyelesaikan absensi PULANG.`);
+            await sendWhatsAppMessage(user.id + '@s.whatsapp.net', `Halo ${user.name}, silakan kirimkan *Live Location* Anda untuk menyelesaikan absensi PULANG. Lokasi diperlukan untuk verifikasi area kantor.`);
         } else {
-            msg += `\nMohon kirimkan *Live Location* Anda di sini.`;
+            msg += `\nSistem memerlukan verifikasi lokasi. Mohon kirimkan *Live Location* Anda di sini untuk verifikasi area kantor.`;
             await sendWhatsAppMessage(remoteJid, msg);
         }
     } else {
@@ -590,7 +651,7 @@ async function alertAdmins(text: string) {
 }
 
 async function handleLocation(user: any, remoteJid: string, replies: any, varData: any, locationData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length > 0 && locationData) {
@@ -625,6 +686,7 @@ async function handleLocation(user: any, remoteJid: string, replies: any, varDat
         if (isOutside) {
             approval_status = 'pending';
             notes += ' (Luar Geofence)';
+            expectedMedia.set(user.id, true);
             msg = replaceVars(replies.out_of_geofence || 'Anda berada di luar area kantor. Mohon kirimkan bukti foto/alasan (Menunggu persetujuan Admin).', varData);
         }
 
@@ -655,7 +717,7 @@ async function handleLocation(user: any, remoteJid: string, replies: any, varDat
 }
 
 async function handleLeave(user: any, remoteJid: string, replies: any, varData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length > 0) {
@@ -668,7 +730,7 @@ async function handleLeave(user: any, remoteJid: string, replies: any, varData: 
     }
 
     const id = crypto.randomUUID();
-    const nowTime = format(new Date(), 'HH:mm:ss');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm:ss');
     await db.insert(attendances).values({
         id,
         user_id: user.id,
@@ -682,16 +744,18 @@ async function handleLeave(user: any, remoteJid: string, replies: any, varData: 
     });
     
     if (remoteJid.endsWith('@g.us')) {
-        await sendWhatsAppMessage(remoteJid, 'Permohonan Libur berhasil dicatat. Mohon cek pesan pribadi (Japri) dari bot untuk mengirimkan bukti foto/dokumen.');
+        expectedMedia.set(user.id, true);
+        await sendWhatsAppMessage(remoteJid, 'Permohonan Libur berhasil dicatat. Mohon cek pesan pribadi (Japri) dari sistem untuk mengirimkan bukti foto/dokumen.');
         await sendWhatsAppMessage(user.id + '@s.whatsapp.net', `Halo ${user.name}, silakan kirimkan bukti foto/alasan untuk permohonan Libur/Izin Anda di sini.`);
     } else {
+        expectedMedia.set(user.id, true);
         await sendWhatsAppMessage(remoteJid, 'Permohonan Libur berhasil dicatat. Silakan kirimkan bukti foto atau dokumen di sini.');
     }
     await alertAdmins(`Ada pengajuan Libur/Off dari ${user.name} (${user.id}).`);
 }
 
 async function handleCancelLeave(user: any, remoteJid: string, replies: any, varData: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length === 0 || existing[0].status !== 'holiday') {
@@ -718,8 +782,6 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
     
     const dailyBonus = appSettings?.bonuses?.on_time || 0;
 
-    let hasLate = false;
-    let hasHolidayExceeded = false;
     let lateDays = 0;
 
     monthlyAttendances.forEach(att => {
@@ -730,24 +792,29 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
          totalBonus += dailyBonus;
       }
       if (att.status === 'late' || (att.penalty_amount && att.penalty_amount > 0)) {
-         hasLate = true;
          lateDays++;
-      }
-      if (att.status === 'holiday') {
-         hasHolidayExceeded = true;
       }
     });
 
     let monthlyPerfectBonus = 0;
     let unusedHolidayBonus = 0;
     
-    const isEligibleForPerfectBonus = !hasLate && !hasHolidayExceeded && monthlyAttendances.length > 0;
+    // Eligible if no quota is exceeded (i.e. remaining quota is >= 0)
+    const isQuotaExceeded = user.late_quota < 0 || user.holiday_quota < 0 || user.emergency_late_quota < 0 || user.early_leave_quota < 0;
+    const isEligibleForPerfectBonus = !isQuotaExceeded && monthlyAttendances.length > 0;
+
     if (isEligibleForPerfectBonus) monthlyPerfectBonus = appSettings?.bonuses?.perfect_attendance || 0;
     if (user.holiday_quota > 0) unusedHolidayBonus = user.holiday_quota * 100000;
     
     totalBonus += monthlyPerfectBonus + unusedHolidayBonus;
 
     const statsBreakdown = `
+*Sisa Kuota Absensi:*
+- Libur: ${user.holiday_quota} kali
+- Telat: ${user.late_quota} kali
+- Telat Darurat: ${user.emergency_late_quota} kali
+- Pulang Cepat: ${user.early_leave_quota} kali
+
 *Total Lembur (Bulan Ini)*: + Rp ${totalOvertime.toLocaleString()}
 *Total Bonus (Bulan Ini)*: + Rp ${totalBonus.toLocaleString()}
 - Harian (Tepat Waktu): + Rp ${(totalBonus - monthlyPerfectBonus - unusedHolidayBonus).toLocaleString()}
@@ -755,8 +822,7 @@ async function handleInfo(user: any, remoteJid: string, replies: any, varData: a
 - Kuota Libur Sisa: + Rp ${unusedHolidayBonus.toLocaleString()}
 
 *Progress Bonus Disiplin*: ${isEligibleForPerfectBonus ? 'Eligible' : 'Not Eligible'}
-- Syarat: Tidak ada keterlambatan (${lateDays === 0 ? 'Terpenuhi' : 'Gagal'})
-- Syarat: Tidak potong libur melebihi batas (${!hasHolidayExceeded ? 'Terpenuhi' : 'Gagal'})
+- Syarat: Tidak melampaui batas semua kuota bulanan (${!isQuotaExceeded ? 'Terpenuhi' : 'Gagal'})
 
 *Total Denda (Bulan Ini)*: - Rp ${totalPenalty.toLocaleString()}
 
@@ -791,7 +857,7 @@ waBotRouter.post('/logout', async (req, res) => {
 
 
 async function handleTelat(user: any, remoteJid: string, replies: any, varData: any, rawCommand: string) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length > 0) {
@@ -807,7 +873,7 @@ async function handleTelat(user: any, remoteJid: string, replies: any, varData: 
 
     const reason = reasonMatch[1].trim();
     const id = crypto.randomUUID();
-    const nowTime = format(new Date(), 'HH:mm:ss');
+    const nowTime = formatInTimeZone(new Date(), 'Asia/Jakarta', 'HH:mm:ss');
 
     await db.insert(attendances).values({
         id,
@@ -822,9 +888,11 @@ async function handleTelat(user: any, remoteJid: string, replies: any, varData: 
     });
     
     if (remoteJid.endsWith('@g.us')) {
-        await sendWhatsAppMessage(remoteJid, 'Keterlambatan Anda berhasil dicatat. Mohon cek pesan pribadi (Japri) dari bot untuk mengirimkan info lokasi (Share Location) dan bukti foto.');
+        expectedMedia.set(user.id, true);
+        await sendWhatsAppMessage(remoteJid, 'Keterlambatan Anda berhasil dicatat. Mohon cek pesan pribadi (Japri) dari sistem untuk mengirimkan info lokasi (Share Location) dan bukti foto.');
         await sendWhatsAppMessage(user.id + '@s.whatsapp.net', `Halo ${user.name}, silakan kirimkan info lokasi (Share Location) dan bukti foto di sini.`);
     } else {
+        expectedMedia.set(user.id, true);
         await sendWhatsAppMessage(remoteJid, 'Keterlambatan Anda berhasil dicatat. Silakan kirimkan info lokasi (Share Location) dan bukti foto di sini.');
     }
     await alertAdmins(`Ada pengajuan Telat dari ${user.name} (${user.id}) dengan alasan: ${reason}`);
@@ -832,7 +900,13 @@ async function handleTelat(user: any, remoteJid: string, replies: any, varData: 
 
 
 async function handleImage(user: any, remoteJid: string, replies: any, varData: any, imageMessage: any) {
-    const today = format(new Date(), 'yyyy-MM-dd');
+    if (!expectedMedia.get(user.id)) {
+        await sendWhatsAppMessage(remoteJid, 'Maaf, saya tidak menerima dokumen/foto yang tidak diminta.');
+        return;
+    }
+    expectedMedia.delete(user.id); // clear state
+
+    const today = formatInTimeZone(new Date(), 'Asia/Jakarta', 'yyyy-MM-dd');
     const existing = await db.select().from(attendances).where(and(eq(attendances.user_id, user.id), eq(attendances.date, today))).limit(1);
     
     if (existing.length > 0 && (existing[0].approval_status === 'pending' || existing[0].status === 'late' || existing[0].status === 'holiday')) {

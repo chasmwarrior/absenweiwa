@@ -17,7 +17,7 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-function LocationPicker({ position, setPosition }: { position: any, setPosition: any }) {
+function LocationPicker({ position, setPosition, radius }: { position: any, setPosition: any, radius?: number }) {
   useMapEvents({
     click(e) {
       setPosition([e.latlng.lat, e.latlng.lng]);
@@ -25,7 +25,10 @@ function LocationPicker({ position, setPosition }: { position: any, setPosition:
   });
 
   return position === null ? null : (
-    <Marker position={position}></Marker>
+    <>
+      <Marker position={position}></Marker>
+      {radius && <Circle center={position} radius={radius} pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.2 }} />}
+    </>
   );
 }
 

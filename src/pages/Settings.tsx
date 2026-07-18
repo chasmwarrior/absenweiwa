@@ -22,7 +22,7 @@ function WhatsAppBotSetup() {
   }, [status]);
 
   const handleLogout = async () => {
-    if (!confirm('Yakin ingin memutuskan koneksi bot WhatsApp ini?')) return;
+    if (!confirm('Yakin ingin memutuskan koneksi WhatsApp ini?')) return;
     try {
       await axios.post('/api/bot/logout');
       fetchStatus();
@@ -136,6 +136,17 @@ export default function Settings() {
         alert('Log lama berhasil dihapus');
       } catch (err) {
         alert('Gagal menghapus log');
+      }
+    }
+  };
+
+  const handleResetAttendances = async () => {
+    if (confirm('PERINGATAN: Ini akan menghapus HANYA data absensi. Pengaturan dan data karyawan tidak akan dihapus. Apakah Anda yakin?')) {
+      try {
+        await axios.post('/api/data/reset-attendances');
+        alert('Data absensi berhasil dihapus');
+      } catch (err) {
+        alert('Gagal menghapus data absensi');
       }
     }
   };
@@ -461,6 +472,12 @@ export default function Settings() {
                     className="px-4 py-2 bg-amber-900/50 hover:bg-amber-800/50 text-amber-400 rounded text-sm font-bold transition-colors border border-amber-700/50"
                   >
                     Hapus Log Lama (&gt;30 Hari)
+                  </button>
+                  <button
+                    onClick={handleResetAttendances}
+                    className="px-4 py-2 bg-rose-900/50 hover:bg-rose-800/50 text-rose-400 rounded text-sm font-bold transition-colors border border-rose-700/50"
+                  >
+                    Hapus Data Absensi Saja
                   </button>
                   <button
                     onClick={handleResetData}
